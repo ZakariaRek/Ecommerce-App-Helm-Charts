@@ -1,20 +1,20 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.shipping.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: shipping-postgres-service
-  namespace: data
+  name: {{ .Values.postgresql.shipping.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: shipping-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.shipping.name }}
     service: shipping-service
-    tier: database
 spec:
-  # Headless service for StatefulSet
   clusterIP: None
   selector:
-    app: shipping-postgres
+    app: {{ .Values.postgresql.shipping.name }}
   ports:
     - name: postgres
-      port: 5432
-      targetPort: 5432
+      port: {{ .Values.postgresql.shipping.service.port }}
+      targetPort: {{ .Values.postgresql.shipping.service.port }}
       protocol: TCP
+{{- end }}

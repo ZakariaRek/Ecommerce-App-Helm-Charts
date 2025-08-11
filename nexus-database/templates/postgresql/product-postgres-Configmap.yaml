@@ -1,11 +1,13 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.product.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: product-postgres-config
-  namespace: data
+  name: {{ .Values.postgresql.product.name }}-config
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: product-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.product.name }}
     service: product-service
 data:
-  database-name: "productdb"
+  database-name: {{ .Values.postgresql.product.database.name | quote }}
+{{- end }}

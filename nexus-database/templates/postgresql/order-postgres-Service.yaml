@@ -1,20 +1,20 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.order.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: order-postgres-service
-  namespace: data
+  name: {{ .Values.postgresql.order.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: order-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.order.name }}
     service: order-service
-    tier: database
 spec:
-  # Headless service for StatefulSet
   clusterIP: None
   selector:
-    app: order-postgres
+    app: {{ .Values.postgresql.order.name }}
   ports:
     - name: postgres
-      port: 5432
-      targetPort: 5432
+      port: {{ .Values.postgresql.order.service.port }}
+      targetPort: {{ .Values.postgresql.order.service.port }}
       protocol: TCP
+{{- end }}

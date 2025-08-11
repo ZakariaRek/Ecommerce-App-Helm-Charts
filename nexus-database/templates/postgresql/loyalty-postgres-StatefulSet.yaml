@@ -1,66 +1,62 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.loyalty.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: loyalty-postgres
-  namespace: data
+  name: {{ .Values.postgresql.loyalty.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: loyalty-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.loyalty.name }}
     service: loyalty-service
-    tier: database
 spec:
-  serviceName: loyalty-postgres-service
-  replicas: 1
+  serviceName: {{ .Values.postgresql.loyalty.name }}-service
+  replicas: {{ .Values.postgresql.loyalty.replicas }}
   selector:
     matchLabels:
-      app: loyalty-postgres
+      app: {{ .Values.postgresql.loyalty.name }}
   template:
     metadata:
       labels:
-        app: loyalty-postgres
-        component: data
+        {{- include "nexus-database.postgresql.labels" . | nindent 8 }}
+        app: {{ .Values.postgresql.loyalty.name }}
         service: loyalty-service
-        tier: database
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: postgres
-          image: postgres:15.4-alpine
+          image: "{{ .Values.postgresql.loyalty.image.repository }}:{{ .Values.postgresql.loyalty.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.loyalty.image.pullPolicy }}
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.postgresql.loyalty.service.port }}
               name: postgres
           env:
             - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  name: loyalty-postgres-config
-                  key: database-name
+              value: {{ .Values.postgresql.loyalty.database.name }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: loyalty-postgres-secret
+                  name: {{ .Values.postgresql.loyalty.name }}-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: loyalty-postgres-secret
+                  name: {{ .Values.postgresql.loyalty.name }}-secret
                   key: password
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_INITDB_ARGS
               value: "--auth-local=trust --auth-host=scram-sha-256"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "250m"
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
             - name: postgres-config
               mountPath: /etc/postgresql
               readOnly: true
+          resources:
+            {{- toYaml .Values.postgresql.loyalty.resources | nindent 12 }}
           livenessProbe:
             exec:
               command:
@@ -100,20 +96,18 @@ spec:
       volumes:
         - name: postgres-config
           configMap:
-            name: loyalty-postgres-config
-  # StatefulSet manages its own persistent volumes
+            name: {{ .Values.postgresql.loyalty.name }}-config
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
         labels:
-          app: loyalty-postgres
-          component: data
-          service: loyalty-service
-          tier: database
+          {{- include "nexus-database.postgresql.labels" . | nindent 10 }}
+          app: {{ .Values.postgresql.loyalty.name }}
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 10Gi
-        storageClassName: standard
+            storage: {{ .Values.postgresql.loyalty.storage.size }}
+        storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

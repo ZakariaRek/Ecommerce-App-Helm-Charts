@@ -1,16 +1,17 @@
-
+{{- if and .Values.messaging.enabled .Values.messaging.kafka.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: kafka-storage-pvc
-  namespace: data
+  name: {{ .Values.messaging.kafka.name }}-storage-pvc
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: kafka
-    component: data
+    {{- include "nexus-database.messaging.labels" . | nindent 4 }}
+    app: {{ .Values.messaging.kafka.name }}
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
-  storageClassName: standard
+      storage: {{ .Values.messaging.kafka.storage.size }}
+  storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

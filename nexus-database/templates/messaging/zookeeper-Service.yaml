@@ -1,25 +1,27 @@
+{{- if and .Values.messaging.enabled .Values.messaging.zookeeper.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: zookeeper-service
-  namespace: data
+  name: {{ .Values.messaging.zookeeper.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: zookeeper
-    component: data
+    {{- include "nexus-database.messaging.labels" . | nindent 4 }}
+    app: {{ .Values.messaging.zookeeper.name }}
 spec:
   selector:
-    app: zookeeper
+    app: {{ .Values.messaging.zookeeper.name }}
   ports:
     - name: client
-      port: 2181
-      targetPort: 2181
+      port: {{ .Values.messaging.zookeeper.service.ports.client }}
+      targetPort: {{ .Values.messaging.zookeeper.service.ports.client }}
       protocol: TCP
     - name: follower
-      port: 2888
-      targetPort: 2888
+      port: {{ .Values.messaging.zookeeper.service.ports.follower }}
+      targetPort: {{ .Values.messaging.zookeeper.service.ports.follower }}
       protocol: TCP
     - name: election
-      port: 3888
-      targetPort: 3888
+      port: {{ .Values.messaging.zookeeper.service.ports.election }}
+      targetPort: {{ .Values.messaging.zookeeper.service.ports.election }}
       protocol: TCP
-  type: ClusterIP
+  type: {{ .Values.messaging.zookeeper.service.type }}
+{{- end }}

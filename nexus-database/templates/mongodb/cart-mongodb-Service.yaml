@@ -1,19 +1,20 @@
+{{- if and .Values.mongodb.enabled .Values.mongodb.cart.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: cart-mongodb-headless
-  namespace: data
+  name: {{ .Values.mongodb.cart.name }}-headless
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: cart-mongodb
-    component: data
+    {{- include "nexus-database.mongodb.labels" . | nindent 4 }}
+    app: {{ .Values.mongodb.cart.name }}
     service: cart-service
-    tier: database
 spec:
-  clusterIP: None  # Headless service
+  clusterIP: None
   selector:
-    app: cart-mongodb
+    app: {{ .Values.mongodb.cart.name }}
   ports:
     - name: mongodb
-      port: 27017
-      targetPort: 27017
+      port: {{ .Values.mongodb.cart.service.port }}
+      targetPort: {{ .Values.mongodb.cart.service.port }}
       protocol: TCP
+{{- end }}

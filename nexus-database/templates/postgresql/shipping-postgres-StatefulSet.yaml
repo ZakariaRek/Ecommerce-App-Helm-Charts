@@ -1,67 +1,62 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.shipping.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: shipping-postgres
-  namespace: data
+  name: {{ .Values.postgresql.shipping.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: shipping-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.shipping.name }}
     service: shipping-service
-    tier: database
 spec:
-  serviceName: shipping-postgres-service
-  replicas: 1
+  serviceName: {{ .Values.postgresql.shipping.name }}-service
+  replicas: {{ .Values.postgresql.shipping.replicas }}
   selector:
     matchLabels:
-      app: shipping-postgres
+      app: {{ .Values.postgresql.shipping.name }}
   template:
     metadata:
       labels:
-        app: shipping-postgres
-        component: data
+        {{- include "nexus-database.postgresql.labels" . | nindent 8 }}
+        app: {{ .Values.postgresql.shipping.name }}
         service: shipping-service
-        tier: database
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: postgres
-          image: postgres:15.4-alpine
+          image: "{{ .Values.postgresql.shipping.image.repository }}:{{ .Values.postgresql.shipping.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.shipping.image.pullPolicy }}
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.postgresql.shipping.service.port }}
               name: postgres
           env:
             - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  name: shipping-postgres-config
-                  key: database-name
+              value: {{ .Values.postgresql.shipping.database.name }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: shipping-postgres-secret
+                  name: {{ .Values.postgresql.shipping.name }}-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: shipping-postgres-secret
+                  name: {{ .Values.postgresql.shipping.name }}-secret
                   key: password
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_INITDB_ARGS
               value: "--auth-local=trust --auth-host=scram-sha-256"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "250m"
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
-
             - name: postgres-config
               mountPath: /etc/postgresql
               readOnly: true
+          resources:
+            {{- toYaml .Values.postgresql.shipping.resources | nindent 12 }}
           livenessProbe:
             exec:
               command:
@@ -101,20 +96,18 @@ spec:
       volumes:
         - name: postgres-config
           configMap:
-            name: shipping-postgres-config
-  # StatefulSet manages its own persistent volumes
+            name: {{ .Values.postgresql.shipping.name }}-config
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
         labels:
-          app: shipping-postgres
-          component: data
-          service: shipping-service
-          tier: database
+          {{- include "nexus-database.postgresql.labels" . | nindent 10 }}
+          app: {{ .Values.postgresql.shipping.name }}
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 10Gi
-        storageClassName: standard
+            storage: {{ .Values.postgresql.shipping.storage.size }}
+        storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

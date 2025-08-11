@@ -1,63 +1,57 @@
+{{- if and .Values.mongodb.enabled .Values.mongodb.user.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: user-mongodb
-  namespace: data
+  name: {{ .Values.mongodb.user.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: user-mongodb
-    component: data
+    {{- include "nexus-database.mongodb.labels" . | nindent 4 }}
+    app: {{ .Values.mongodb.user.name }}
     service: user-service
-    tier: database
 spec:
-  serviceName: user-mongodb-headless
-  replicas: 2
+  serviceName: {{ .Values.mongodb.user.name }}-headless
+  replicas: {{ .Values.mongodb.user.replicas }}
   selector:
     matchLabels:
-      app: user-mongodb
+      app: {{ .Values.mongodb.user.name }}
   template:
     metadata:
       labels:
-        app: user-mongodb
-        component: data
+        {{- include "nexus-database.mongodb.labels" . | nindent 8 }}
+        app: {{ .Values.mongodb.user.name }}
         service: user-service
-        tier: database
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: mongodb
-          image: mongo:7.0
+          image: "{{ .Values.mongodb.user.image.repository }}:{{ .Values.mongodb.user.image.tag }}"
+          imagePullPolicy: {{ .Values.mongodb.user.image.pullPolicy }}
           ports:
-            - containerPort: 27017
+            - containerPort: {{ .Values.mongodb.user.service.port }}
               name: mongodb
           env:
             - name: MONGO_INITDB_ROOT_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: user-mongodb-secret
+                  name: {{ .Values.mongodb.user.name }}-secret
                   key: username
             - name: MONGO_INITDB_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: user-mongodb-secret
+                  name: {{ .Values.mongodb.user.name }}-secret
                   key: password
             - name: MONGO_INITDB_DATABASE
-              valueFrom:
-                configMapKeyRef:
-                  name: user-mongodb-config
-                  key: database-name
+              value: {{ .Values.mongodb.user.database.name }}
           volumeMounts:
             - name: mongodb-data
               mountPath: /data/db
             - name: mongodb-config
               mountPath: /data/configdb
           resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "500m"
-
-          # FIXED: Health checks with proper authentication
+            {{- toYaml .Values.mongodb.user.resources | nindent 12 }}
           livenessProbe:
             exec:
               command:
@@ -65,11 +59,10 @@ spec:
                 - -c
                 - |
                   mongosh --username $MONGO_INITDB_ROOT_USERNAME --password $MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval "db.adminCommand('ping')" --quiet
-            initialDelaySeconds: 120   # Increased for MongoDB 7.0
+            initialDelaySeconds: 120
             periodSeconds: 30
-            timeoutSeconds: 20         # Increased timeout
+            timeoutSeconds: 20
             failureThreshold: 3
-
           readinessProbe:
             exec:
               command:
@@ -77,21 +70,17 @@ spec:
                 - -c
                 - |
                   mongosh --username $MONGO_INITDB_ROOT_USERNAME --password $MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval "db.adminCommand('ping')" --quiet
-            initialDelaySeconds: 60    # Increased for proper startup
+            initialDelaySeconds: 60
             periodSeconds: 15
-            timeoutSeconds: 20         # Increased timeout
-            failureThreshold: 5        # More tolerant
-
+            timeoutSeconds: 20
+            failureThreshold: 5
           startupProbe:
-            # Use TCP probe first for basic connectivity
             tcpSocket:
-              port: 27017
+              port: {{ .Values.mongodb.user.service.port }}
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 60       # Allow 10 minutes for startup (30s + 60*10s)
-
-      # Pod Anti-Affinity for High Availability
+            failureThreshold: 60
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -99,31 +88,29 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
-                    app: user-mongodb
+                    app: {{ .Values.mongodb.user.name }}
                 topologyKey: kubernetes.io/hostname
-
   volumeClaimTemplates:
     - metadata:
         name: mongodb-data
         labels:
-          app: user-mongodb
-          component: data
-          service: user-service
+          {{- include "nexus-database.mongodb.labels" . | nindent 10 }}
+          app: {{ .Values.mongodb.user.name }}
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: standard
+        storageClassName: {{ .Values.global.storageClass }}
         resources:
           requests:
-            storage: 5Gi
+            storage: {{ .Values.mongodb.user.storage.data.size }}
     - metadata:
         name: mongodb-config
         labels:
-          app: user-mongodb
-          component: data
-          service: user-service
+          {{- include "nexus-database.mongodb.labels" . | nindent 10 }}
+          app: {{ .Values.mongodb.user.name }}
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: standard
+        storageClassName: {{ .Values.global.storageClass }}
         resources:
           requests:
-            storage: 1Gi
+            storage: {{ .Values.mongodb.user.storage.config.size }}
+{{- end }}

@@ -1,18 +1,19 @@
+{{- if .Values.redis.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis-service
-  namespace: data
+  name: {{ .Values.redis.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: redis-service
-    component: data
-    tier: cache
+    {{- include "nexus-database.redis.labels" . | nindent 4 }}
+    app: {{ .Values.redis.name }}
 spec:
   selector:
-    app: redis-service
+    app: {{ .Values.redis.name }}
   ports:
     - name: redis
-      port: 6379
-      targetPort: 6379
+      port: {{ .Values.redis.service.port }}
+      targetPort: {{ .Values.redis.service.port }}
       protocol: TCP
-  type: ClusterIP
+  type: {{ .Values.redis.service.type }}
+{{- end }}

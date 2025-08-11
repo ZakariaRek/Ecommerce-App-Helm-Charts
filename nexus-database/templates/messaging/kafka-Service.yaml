@@ -1,22 +1,23 @@
-
+{{- if and .Values.messaging.enabled .Values.messaging.kafka.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: kafka-service
-  namespace: data
+  name: {{ .Values.messaging.kafka.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: kafka
-    component: data
+    {{- include "nexus-database.messaging.labels" . | nindent 4 }}
+    app: {{ .Values.messaging.kafka.name }}
 spec:
   selector:
-    app: kafka
+    app: {{ .Values.messaging.kafka.name }}
   ports:
     - name: kafka
-      port: 9092
-      targetPort: 9092
+      port: {{ .Values.messaging.kafka.service.ports.kafka }}
+      targetPort: {{ .Values.messaging.kafka.service.ports.kafka }}
       protocol: TCP
     - name: jmx
-      port: 9997
-      targetPort: 9997
+      port: {{ .Values.messaging.kafka.service.ports.jmx }}
+      targetPort: {{ .Values.messaging.kafka.service.ports.jmx }}
       protocol: TCP
-  type: ClusterIP
+  type: {{ .Values.messaging.kafka.service.type }}
+{{- end }}

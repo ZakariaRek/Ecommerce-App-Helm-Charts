@@ -1,16 +1,17 @@
+{{- if .Values.redis.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: redis-pvc
-  namespace: data
+  name: {{ .Values.redis.name }}-pvc
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: redis-service
-    component: data
-    tier: cache
+    {{- include "nexus-database.redis.labels" . | nindent 4 }}
+    app: {{ .Values.redis.name }}
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
-  storageClassName: standard
+      storage: {{ .Values.redis.storage.size }}
+  storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

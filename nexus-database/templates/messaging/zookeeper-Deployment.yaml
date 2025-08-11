@@ -1,35 +1,41 @@
+{{- if and .Values.messaging.enabled .Values.messaging.zookeeper.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: zookeeper
-  namespace: data
+  name: {{ .Values.messaging.zookeeper.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: zookeeper
-    component: data
+    {{- include "nexus-database.messaging.labels" . | nindent 4 }}
+    app: {{ .Values.messaging.zookeeper.name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.messaging.zookeeper.replicas }}
   selector:
     matchLabels:
-      app: zookeeper
+      app: {{ .Values.messaging.zookeeper.name }}
   template:
     metadata:
       labels:
-        app: zookeeper
-        component: data
+        {{- include "nexus-database.messaging.labels" . | nindent 8 }}
+        app: {{ .Values.messaging.zookeeper.name }}
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: zookeeper
-          image: confluentinc/cp-zookeeper:7.4.0
+          image: "{{ .Values.messaging.zookeeper.image.repository }}:{{ .Values.messaging.zookeeper.image.tag }}"
+          imagePullPolicy: {{ .Values.messaging.zookeeper.image.pullPolicy }}
           ports:
-            - containerPort: 2181
+            - containerPort: {{ .Values.messaging.zookeeper.service.ports.client }}
               name: client
-            - containerPort: 2888
+            - containerPort: {{ .Values.messaging.zookeeper.service.ports.follower }}
               name: follower
-            - containerPort: 3888
+            - containerPort: {{ .Values.messaging.zookeeper.service.ports.election }}
               name: election
           env:
             - name: ZOOKEEPER_CLIENT_PORT
-              value: "2181"
+              value: {{ .Values.messaging.zookeeper.service.ports.client | quote }}
             - name: ZOOKEEPER_TICK_TIME
               value: "2000"
             - name: ZOOKEEPER_INIT_LIMIT
@@ -48,23 +54,10 @@ spec:
               value: "INFO"
             - name: KAFKA_HEAP_OPTS
               value: "-Xmx256M -Xms256M"
-            # Enable specific 4-letter word commands for health checks
             - name: ZOOKEEPER_4LW_COMMANDS_WHITELIST
               value: "srvr,stat,ruok,conf,cons,crst,envi,mntr,wchs,wchc,wchp,dirs"
-            # Add log4j configuration via environment variables
-            - name: ZOOKEEPER_LOG4J_APPENDER_STDOUT
-              value: "org.apache.log4j.ConsoleAppender"
-            - name: ZOOKEEPER_LOG4J_APPENDER_STDOUT_LAYOUT
-              value: "org.apache.log4j.PatternLayout"
-            - name: ZOOKEEPER_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN
-              value: "%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n"
           resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "250m"
+            {{- toYaml .Values.messaging.zookeeper.resources | nindent 12 }}
           volumeMounts:
             - name: zookeeper-data
               mountPath: /var/lib/zookeeper/data
@@ -75,7 +68,7 @@ spec:
               subPath: zoo.cfg
           livenessProbe:
             tcpSocket:
-              port: 2181
+              port: {{ .Values.messaging.zookeeper.service.ports.client }}
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -85,14 +78,14 @@ spec:
               command:
                 - sh
                 - -c
-                - "echo srvr | nc localhost 2181 | grep -q Mode"
+                - "echo srvr | nc localhost {{ .Values.messaging.zookeeper.service.ports.client }} | grep -q Mode"
             initialDelaySeconds: 20
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
           startupProbe:
             tcpSocket:
-              port: 2181
+              port: {{ .Values.messaging.zookeeper.service.ports.client }}
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
@@ -100,10 +93,11 @@ spec:
       volumes:
         - name: zookeeper-data
           persistentVolumeClaim:
-            claimName: zookeeper-data-pvc
+            claimName: {{ .Values.messaging.zookeeper.name }}-data-pvc
         - name: zookeeper-logs
           persistentVolumeClaim:
-            claimName: zookeeper-logs-pvc
+            claimName: {{ .Values.messaging.zookeeper.name }}-logs-pvc
         - name: zookeeper-config
           configMap:
-            name: zookeeper-config
+            name: {{ .Values.messaging.zookeeper.name }}-config
+{{- end }}
