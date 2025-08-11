@@ -11,7 +11,7 @@ keywords:
   - postgresql
   - redis
   - kafka
-  - microservices
+  - messaging
 
 maintainers:
   - name: NexusCommerce Team
