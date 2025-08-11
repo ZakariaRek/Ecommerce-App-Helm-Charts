@@ -1,67 +1,62 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.order.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: order-postgres
-  namespace: data
+  name: {{ .Values.postgresql.order.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: order-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.order.name }}
     service: order-service
-    tier: database
 spec:
-  serviceName: order-postgres-service
-  replicas: 1
+  serviceName: {{ .Values.postgresql.order.name }}-service
+  replicas: {{ .Values.postgresql.order.replicas }}
   selector:
     matchLabels:
-      app: order-postgres
+      app: {{ .Values.postgresql.order.name }}
   template:
     metadata:
       labels:
-        app: order-postgres
-        component: data
+        {{- include "nexus-database.postgresql.labels" . | nindent 8 }}
+        app: {{ .Values.postgresql.order.name }}
         service: order-service
-        tier: database
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: postgres
-          image: postgres:15.4-alpine
+          image: "{{ .Values.postgresql.order.image.repository }}:{{ .Values.postgresql.order.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.order.image.pullPolicy }}
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.postgresql.order.service.port }}
               name: postgres
           env:
             - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  name: order-postgres-config
-                  key: database-name
+              value: {{ .Values.postgresql.order.database.name }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: order-postgres-secret
+                  name: {{ .Values.postgresql.order.name }}-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: order-postgres-secret
+                  name: {{ .Values.postgresql.order.name }}-secret
                   key: password
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_INITDB_ARGS
               value: "--auth-local=trust --auth-host=scram-sha-256"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "250m"
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
-
             - name: postgres-config
               mountPath: /etc/postgresql
               readOnly: true
+          resources:
+            {{- toYaml .Values.postgresql.order.resources | nindent 12 }}
           livenessProbe:
             exec:
               command:
@@ -101,20 +96,18 @@ spec:
       volumes:
         - name: postgres-config
           configMap:
-            name: order-postgres-config
-  # StatefulSet manages its own persistent volumes
+            name: {{ .Values.postgresql.order.name }}-config
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
         labels:
-          app: order-postgres
-          component: data
-          service: order-service
-          tier: database
+          {{- include "nexus-database.postgresql.labels" . | nindent 10 }}
+          app: {{ .Values.postgresql.order.name }}
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 10Gi
-        storageClassName: standard
+            storage: {{ .Values.postgresql.order.storage.size }}
+        storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

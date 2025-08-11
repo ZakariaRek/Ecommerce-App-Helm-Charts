@@ -1,20 +1,20 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.payment.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: payment-postgres-service
-  namespace: data
+  name: {{ .Values.postgresql.payment.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: payment-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.payment.name }}
     service: payment-service
-    tier: database
 spec:
-  # Headless service for StatefulSet
   clusterIP: None
   selector:
-    app: payment-postgres
+    app: {{ .Values.postgresql.payment.name }}
   ports:
     - name: postgres
-      port: 5432
-      targetPort: 5432
+      port: {{ .Values.postgresql.payment.service.port }}
+      targetPort: {{ .Values.postgresql.payment.service.port }}
       protocol: TCP
+{{- end }}

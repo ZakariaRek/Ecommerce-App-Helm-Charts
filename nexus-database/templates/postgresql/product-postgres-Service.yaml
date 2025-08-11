@@ -1,20 +1,20 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.product.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: product-postgres-service
-  namespace: data
+  name: {{ .Values.postgresql.product.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: product-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.product.name }}
     service: product-service
-    tier: database
 spec:
-  # Headless service for StatefulSet
   clusterIP: None
   selector:
-    app: product-postgres
+    app: {{ .Values.postgresql.product.name }}
   ports:
     - name: postgres
-      port: 5432
-      targetPort: 5432
+      port: {{ .Values.postgresql.product.service.port }}
+      targetPort: {{ .Values.postgresql.product.service.port }}
       protocol: TCP
+{{- end }}

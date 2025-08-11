@@ -1,40 +1,39 @@
+{{- if .Values.redis.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: redis-service
-  namespace: data
+  name: {{ .Values.redis.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: redis-service
-    component: data
-    tier: cache
+    {{- include "nexus-database.redis.labels" . | nindent 4 }}
+    app: {{ .Values.redis.name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.redis.replicas }}
   selector:
     matchLabels:
-      app: redis-service
+      app: {{ .Values.redis.name }}
   template:
     metadata:
       labels:
-        app: redis-service
-        component: data
-        tier: cache
+        {{- include "nexus-database.redis.labels" . | nindent 8 }}
+        app: {{ .Values.redis.name }}
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: redis
-          image: redis:7.2-alpine
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
           ports:
-            - containerPort: 6379
+            - containerPort: {{ .Values.redis.service.port }}
               name: redis-port
           command:
             - redis-server
             - /usr/local/etc/redis/redis.conf
           resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "200m"
+            {{- toYaml .Values.redis.resources | nindent 12 }}
           volumeMounts:
             - name: redis-data
               mountPath: /data
@@ -43,14 +42,35 @@ spec:
               readOnly: true
           env:
             - name: REDIS_PORT
-              value: "6379"
-            - name: REDIS_DATABASES
-              value: "16"
+              value: {{ .Values.redis.service.port | quote }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.redis.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.redis.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 10
       volumes:
         - name: redis-data
           persistentVolumeClaim:
-            claimName: redis-pvc
+            claimName: {{ .Values.redis.name }}-pvc
         - name: redis-config
           configMap:
-            name: redis-config
+            name: {{ .Values.redis.name }}-config
       restartPolicy: Always
+{{- end }}

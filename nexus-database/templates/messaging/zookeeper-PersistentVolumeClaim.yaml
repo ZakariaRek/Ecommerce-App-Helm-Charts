@@ -1,32 +1,33 @@
-# base/data/zookeeper/PersistentVolumeClaim.yaml
+{{- if and .Values.messaging.enabled .Values.messaging.zookeeper.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: zookeeper-data-pvc
-  namespace: data
+  name: {{ .Values.messaging.zookeeper.name }}-data-pvc
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: zookeeper
-    component: data
+    {{- include "nexus-database.messaging.labels" . | nindent 4 }}
+    app: {{ .Values.messaging.zookeeper.name }}
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 5Gi
-  storageClassName: standard
+      storage: {{ .Values.messaging.zookeeper.storage.data.size }}
+  storageClassName: {{ .Values.global.storageClass }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: zookeeper-logs-pvc
-  namespace: data
+  name: {{ .Values.messaging.zookeeper.name }}-logs-pvc
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: zookeeper
-    component: data
+    {{- include "nexus-database.messaging.labels" . | nindent 4 }}
+    app: {{ .Values.messaging.zookeeper.name }}
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
-  storageClassName: standard
+      storage: {{ .Values.messaging.zookeeper.storage.logs.size }}
+  storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

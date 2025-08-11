@@ -1,41 +1,39 @@
+{{- if and .Values.mongodb.enabled .Values.mongodb.user.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-mongodb-headless
-  namespace: data
+  name: {{ .Values.mongodb.user.name }}-headless
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: user-mongodb
-    component: data
+    {{- include "nexus-database.mongodb.labels" . | nindent 4 }}
+    app: {{ .Values.mongodb.user.name }}
     service: user-service
-    tier: database
 spec:
-  clusterIP: None  # Headless service
+  clusterIP: None
   selector:
-    app: user-mongodb
+    app: {{ .Values.mongodb.user.name }}
   ports:
     - name: mongodb
-      port: 27017
-      targetPort: 27017
+      port: {{ .Values.mongodb.user.service.port }}
+      targetPort: {{ .Values.mongodb.user.service.port }}
       protocol: TCP
-
 ---
-# Regular service for backward compatibility
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-mongodb-service
-  namespace: data
+  name: {{ .Values.mongodb.user.name }}-service
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: user-mongodb
-    component: data
+    {{- include "nexus-database.mongodb.labels" . | nindent 4 }}
+    app: {{ .Values.mongodb.user.name }}
     service: user-service
-    tier: database
 spec:
   selector:
-    app: user-mongodb
+    app: {{ .Values.mongodb.user.name }}
   ports:
     - name: mongodb
-      port: 27017
-      targetPort: 27017
+      port: {{ .Values.mongodb.user.service.port }}
+      targetPort: {{ .Values.mongodb.user.service.port }}
       protocol: TCP
   type: ClusterIP
+{{- end }}

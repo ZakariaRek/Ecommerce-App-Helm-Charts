@@ -1,37 +1,37 @@
+{{- if and .Values.mongodb.enabled .Values.mongodb.user.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: user-mongodb-config
-  namespace: data
+  name: {{ .Values.mongodb.user.name }}-config
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: user-mongodb
-    component: data
+    {{- include "nexus-database.mongodb.labels" . | nindent 4 }}
+    app: {{ .Values.mongodb.user.name }}
     service: user-service
 data:
-  database-name: "userdb"
-  mongodb-url: "mongodb://user-mongodb-headless.data.svc.cluster.local:27017/userdb"
-
-  # MongoDB configuration file
+  database-name: {{ .Values.mongodb.user.database.name | quote }}
+  mongodb-url: "mongodb://{{ .Values.mongodb.user.name }}-headless.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.mongodb.user.service.port }}/{{ .Values.mongodb.user.database.name }}"
   mongod.conf: |
-      storage:
-        dbPath: /data/db
-        journal:
-          enabled: true
-        wiredTiger:
-          engineConfig:
-            cacheSizeGB: 0.25
-      systemLog:
-        destination: file
-        logAppend: true
-        path: /var/log/mongodb/mongod.log
-        logRotate: reopen
-      net:
-        port: 27017
-        bindIp: 0.0.0.0
-        maxIncomingConnections: 100
-      processManagement:
-        timeZoneInfo: /usr/share/zoneinfo
-      replication:
-        replSetName: "user-replica-set"
-      security:
-        authorization: enabled
+    storage:
+      dbPath: /data/db
+      journal:
+        enabled: true
+      wiredTiger:
+        engineConfig:
+          cacheSizeGB: 0.25
+    systemLog:
+      destination: file
+      logAppend: true
+      path: /var/log/mongodb/mongod.log
+      logRotate: reopen
+    net:
+      port: {{ .Values.mongodb.user.service.port }}
+      bindIp: 0.0.0.0
+      maxIncomingConnections: 100
+    processManagement:
+      timeZoneInfo: /usr/share/zoneinfo
+    replication:
+      replSetName: "user-replica-set"
+    security:
+      authorization: enabled
+{{- end }}

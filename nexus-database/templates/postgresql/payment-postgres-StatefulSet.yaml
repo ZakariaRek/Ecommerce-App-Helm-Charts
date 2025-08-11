@@ -1,67 +1,62 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.payment.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: payment-postgres
-  namespace: data
+  name: {{ .Values.postgresql.payment.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: payment-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.payment.name }}
     service: payment-service
-    tier: database
 spec:
-  serviceName: payment-postgres-service
-  replicas: 1
+  serviceName: {{ .Values.postgresql.payment.name }}-service
+  replicas: {{ .Values.postgresql.payment.replicas }}
   selector:
     matchLabels:
-      app: payment-postgres
+      app: {{ .Values.postgresql.payment.name }}
   template:
     metadata:
       labels:
-        app: payment-postgres
-        component: data
+        {{- include "nexus-database.postgresql.labels" . | nindent 8 }}
+        app: {{ .Values.postgresql.payment.name }}
         service: payment-service
-        tier: database
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: postgres
-          image: postgres:15.4-alpine
+          image: "{{ .Values.postgresql.payment.image.repository }}:{{ .Values.postgresql.payment.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.payment.image.pullPolicy }}
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.postgresql.payment.service.port }}
               name: postgres
           env:
             - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  name: payment-postgres-config
-                  key: database-name
+              value: {{ .Values.postgresql.payment.database.name }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: payment-postgres-secret
+                  name: {{ .Values.postgresql.payment.name }}-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: payment-postgres-secret
+                  name: {{ .Values.postgresql.payment.name }}-secret
                   key: password
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_INITDB_ARGS
               value: "--auth-local=trust --auth-host=scram-sha-256"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "250m"
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
-
             - name: postgres-config
               mountPath: /etc/postgresql
               readOnly: true
+          resources:
+            {{- toYaml .Values.postgresql.payment.resources | nindent 12 }}
           livenessProbe:
             exec:
               command:
@@ -101,20 +96,18 @@ spec:
       volumes:
         - name: postgres-config
           configMap:
-            name: payment-postgres-config
-  # StatefulSet manages its own persistent volumes
+            name: {{ .Values.postgresql.payment.name }}-config
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
         labels:
-          app: payment-postgres
-          component: data
-          service: payment-service
-          tier: database
+          {{- include "nexus-database.postgresql.labels" . | nindent 10 }}
+          app: {{ .Values.postgresql.payment.name }}
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 10Gi
-        storageClassName: standard
+            storage: {{ .Values.postgresql.payment.storage.size }}
+        storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

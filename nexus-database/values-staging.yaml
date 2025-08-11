@@ -1,121 +1,27 @@
 global:
   namespace: data
-  environment: staging
-  storageClass: standard
+  environment: production
+  storageClass: fast-ssd
   nodeSelector:
     node-role: data
 
-# MongoDB Configuration for Staging (Mid-size between dev and prod)
+# MongoDB Configuration for Production
 mongodb:
   enabled: true
 
   cart:
     enabled: true
-    replicas: 2
-
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
-
-    storage:
-      data:
-        size: 10Gi
-      config:
-        size: 2Gi
-
-  user:
-    enabled: true
-    replicas: 2
-
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
-
-    storage:
-      data:
-        size: 10Gi
-      config:
-        size: 2Gi
-
-# PostgreSQL Configuration for Staging
-postgresql:
-  enabled: true
-
-  product:
-    enabled: true
-    storage:
-      size: 20Gi
-
-  payment:
-    enabled: true
-    storage:
-      size: 20Gi
-
-  order:
-    enabled: true
-    storage:
-      size: 20Gi
-
-  loyalty:
-    enabled: true
-    storage:
-      size: 10Gi
-
-  shipping:
-    enabled: true
-    storage:
-      size: 10Gi
-
-# Redis Configuration for Staging
-redis:
-  enabled: true
-
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "200m"
-    limits:
-      memory: "1Gi"
-      cpu: "400m"
-
-  storage:
-    size: 5Gi
-
-  config:
-    maxmemory: "512mb"
-
-# Messaging Configuration for Staging
-messaging:
-  enabled: true
-
-  zookeeper:
-    enabled: true
-
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "200m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
-
-    storage:
-      data:
-        size: 5Gi
-      logs:
-        size: 2Gi
-
-  kafka:
-    enabled: true
-
+    name: cart-mongodb
+    image:
+      repository: mongo
+      tag: "7.0"
+      pullPolicy: IfNotPresent
+    replicas: 3  # High availability
+    database:
+      name: cartdb
+    auth:
+      username: cartservice
+      password: cartservice123
     resources:
       requests:
         memory: "1Gi"
@@ -123,22 +29,277 @@ messaging:
       limits:
         memory: "2Gi"
         cpu: "1000m"
-
     storage:
-      size: 20Gi
+      data:
+        size: 50Gi  # Larger storage for prod
+      config:
+        size: 5Gi
+    service:
+      type: ClusterIP
+      port: 27017
 
+  user:
+    enabled: true
+    name: user-mongodb
+    image:
+      repository: mongo
+      tag: "7.0"
+      pullPolicy: IfNotPresent
+    replicas: 3  # High availability
+    database:
+      name: userdb
+    auth:
+      username: userservice
+      password: userservice123
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    storage:
+      data:
+        size: 50Gi  # Larger storage for prod
+      config:
+        size: 5Gi
+    service:
+      type: ClusterIP
+      port: 27017
+
+# PostgreSQL Configuration for Production
+postgresql:
+  enabled: true
+
+  product:
+    enabled: true
+    name: product-postgres
+    image:
+      repository: postgres
+      tag: "15.4-alpine"
+      pullPolicy: IfNotPresent
+    replicas: 2  # Master-slave setup
+    database:
+      name: productdb
+    auth:
+      username: productservice
+      password: productservice123
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    storage:
+      size: 100Gi  # Large storage for prod
+    service:
+      type: ClusterIP
+      port: 5432
+
+  payment:
+    enabled: true
+    name: payment-postgres
+    image:
+      repository: postgres
+      tag: "15.4-alpine"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    database:
+      name: paymentdb
+    auth:
+      username: paymentservice
+      password: paymentservice123
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    storage:
+      size: 100Gi
+    service:
+      type: ClusterIP
+      port: 5432
+
+  order:
+    enabled: true
+    name: order-postgres
+    image:
+      repository: postgres
+      tag: "15.4-alpine"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    database:
+      name: orderdb
+    auth:
+      username: orderservice
+      password: orderservice123
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    storage:
+      size: 100Gi
+    service:
+      type: ClusterIP
+      port: 5432
+
+  loyalty:
+    enabled: true
+    name: loyalty-postgres
+    image:
+      repository: postgres
+      tag: "15.4-alpine"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    database:
+      name: loyalty-service
+    auth:
+      username: loyaltyservice
+      password: loyaltyservice123
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    storage:
+      size: 50Gi
+    service:
+      type: ClusterIP
+      port: 5432
+
+  shipping:
+    enabled: true
+    name: shipping-postgres
+    image:
+      repository: postgres
+      tag: "15.4-alpine"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    database:
+      name: shippingdb
+    auth:
+      username: shippingservice
+      password: shippingservice123
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    storage:
+      size: 50Gi
+    service:
+      type: ClusterIP
+      port: 5432
+
+# Redis Configuration for Production
+redis:
+  enabled: true
+  name: redis-service
+  image:
+    repository: redis
+    tag: "7.2-alpine"
+    pullPolicy: IfNotPresent
+  replicas: 3  # Redis Cluster
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "500m"
+  storage:
+    size: 20Gi
+  service:
+    type: ClusterIP
+    port: 6379
+  config:
+    maxmemory: "1gb"
+    maxmemoryPolicy: "allkeys-lru"
+    appendonly: "yes"
+
+# Messaging Configuration for Production
+messaging:
+  enabled: true
+
+  zookeeper:
+    enabled: true
+    name: zookeeper
+    image:
+      repository: confluentinc/cp-zookeeper
+      tag: "7.4.0"
+      pullPolicy: IfNotPresent
+    replicas: 3  # Quorum
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "250m"
+      limits:
+        memory: "2Gi"
+        cpu: "500m"
+    storage:
+      data:
+        size: 20Gi
+      logs:
+        size: 10Gi
+    service:
+      type: ClusterIP
+      ports:
+        client: 2181
+        follower: 2888
+        election: 3888
+
+  kafka:
+    enabled: true
+    name: kafka
+    image:
+      repository: confluentinc/cp-kafka
+      tag: "7.4.0"
+      pullPolicy: IfNotPresent
+    replicas: 3  # High availability
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    storage:
+      size: 100Gi
+    service:
+      type: ClusterIP
+      ports:
+        kafka: 9092
+        jmx: 9997
     config:
-      logRetentionHours: 72  # 3 days
-      logRetentionBytes: "2147483648"  # 2GB
+      numPartitions: 6
+      defaultReplicationFactor: 3
+      logRetentionHours: 168  # 1 week
+      logRetentionBytes: "10737418240"  # 10GB
 
-# Monitoring for Staging
+# Security for Production
+security:
+  enabled: true
+  networkPolicies:
+    enabled: true
+
+# Monitoring for Production
 monitoring:
   enabled: true
   prometheus:
     enabled: true
 
-# Backup for Staging
+# Backup for Production
 backup:
   enabled: true
-  schedule: "0 3 * * *"  # Daily at 3 AM
-  retention: 14  # Keep for 14 days
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30  # Keep for 30 days

@@ -1,11 +1,13 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.order.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: order-postgres-config
-  namespace: data
+  name: {{ .Values.postgresql.order.name }}-config
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: order-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.order.name }}
     service: order-service
 data:
-  database-name: "orderdb"
+  database-name: {{ .Values.postgresql.order.database.name | quote }}
+{{- end }}

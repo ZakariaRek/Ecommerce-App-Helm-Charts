@@ -1,67 +1,62 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.product.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: product-postgres
-  namespace: data
+  name: {{ .Values.postgresql.product.name }}
+  namespace: {{ .Values.global.namespace }}
   labels:
-    app: product-postgres
-    component: data
+    {{- include "nexus-database.postgresql.labels" . | nindent 4 }}
+    app: {{ .Values.postgresql.product.name }}
     service: product-service
-    tier: database
 spec:
-  serviceName: product-postgres-service
-  replicas: 1
+  serviceName: {{ .Values.postgresql.product.name }}-service
+  replicas: {{ .Values.postgresql.product.replicas }}
   selector:
     matchLabels:
-      app: product-postgres
+      app: {{ .Values.postgresql.product.name }}
   template:
     metadata:
       labels:
-        app: product-postgres
-        component: data
+        {{- include "nexus-database.postgresql.labels" . | nindent 8 }}
+        app: {{ .Values.postgresql.product.name }}
         service: product-service
-        tier: database
     spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
       containers:
         - name: postgres
-          image: postgres:15.4-alpine
+          image: "{{ .Values.postgresql.product.image.repository }}:{{ .Values.postgresql.product.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.product.image.pullPolicy }}
           ports:
-            - containerPort: 5432
+            - containerPort: {{ .Values.postgresql.product.service.port }}
               name: postgres
           env:
             - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  name: product-postgres-config
-                  key: database-name
+              value: {{ .Values.postgresql.product.database.name }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: product-postgres-secret
+                  name: {{ .Values.postgresql.product.name }}-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: product-postgres-secret
+                  name: {{ .Values.postgresql.product.name }}-secret
                   key: password
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_INITDB_ARGS
               value: "--auth-local=trust --auth-host=scram-sha-256"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "250m"
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
-            # REMOVED: postgres-init volume mount since ConfigMap doesn't exist
             - name: postgres-config
               mountPath: /etc/postgresql
               readOnly: true
+          resources:
+            {{- toYaml .Values.postgresql.product.resources | nindent 12 }}
           livenessProbe:
             exec:
               command:
@@ -99,23 +94,20 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 12
       volumes:
-        # REMOVED: postgres-init volume since ConfigMap doesn't exist
         - name: postgres-config
           configMap:
-            name: product-postgres-config
-  # StatefulSet manages its own persistent volumes
+            name: {{ .Values.postgresql.product.name }}-config
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
         labels:
-          app: product-postgres
-          component: data
-          service: product-service
-          tier: database
+          {{- include "nexus-database.postgresql.labels" . | nindent 10 }}
+          app: {{ .Values.postgresql.product.name }}
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 10Gi
-        storageClassName: standard
+            storage: {{ .Values.postgresql.product.storage.size }}
+        storageClassName: {{ .Values.global.storageClass }}
+{{- end }}
