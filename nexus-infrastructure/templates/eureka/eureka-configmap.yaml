@@ -1,0 +1,59 @@
+{{- if .Values.eureka.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.eureka.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.eureka.labels" . | nindent 4 }}
+    app: {{ .Values.eureka.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.eureka.service.port }}
+
+    spring:
+      application:
+        name: eureka-server
+      profiles:
+        active: docker
+
+    eureka:
+      instance:
+        hostname: {{ .Values.eureka.name }}
+        prefer-ip-address: false
+        lease-renewal-interval-in-seconds: 10
+        lease-expiration-duration-in-seconds: 20
+      client:
+        register-with-eureka: false
+        fetch-registry: false
+        service-url:
+          defaultZone: http://{{ .Values.eureka.name }}:{{ .Values.eureka.service.port }}/eureka/
+      server:
+        enable-self-preservation: {{ .Values.eureka.config.selfPreservation }}
+        eviction-interval-timer-in-ms: {{ .Values.eureka.config.evictionInterval }}
+        response-cache-update-interval-ms: {{ .Values.eureka.config.responseCache }}
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,env,metrics
+      endpoint:
+        health:
+          show-details: always
+      tracing:
+        sampling:
+          probability: 1.0
+      {{- if .Values.zipkin.enabled }}
+      zipkin:
+        tracing:
+          endpoint: http://{{ .Values.zipkin.name }}.{{ .Values.global.namespace }}:{{ .Values.zipkin.service.port }}/api/v2/spans
+      {{- end }}
+
+    logging:
+      level:
+        com.netflix.eureka: INFO
+        com.netflix.discovery: INFO
+        zipkin2: INFO
+{{- end }}

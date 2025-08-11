@@ -1,0 +1,20 @@
+apiVersion: v2
+name: nexus-infrastructure
+description: A Helm chart for NexusCommerce Infrastructure Stack
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+keywords:
+  - infrastructure
+  - api-gateway
+  - config-server
+  - eureka
+  - zipkin
+  - service-mesh
+
+maintainers:
+  - name: NexusCommerce Team
+    email: team@nexuscommerce.com
+
+dependencies: []

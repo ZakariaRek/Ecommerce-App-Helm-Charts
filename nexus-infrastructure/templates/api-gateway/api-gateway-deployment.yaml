@@ -1,0 +1,143 @@
+  {{- if .Values.apiGateway.enabled }}
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: {{ .Values.apiGateway.name }}
+    namespace: {{ .Values.global.namespace }}
+    labels:
+      {{- include "nexus-infrastructure.apigateway.labels" . | nindent 4 }}
+      app: {{ .Values.apiGateway.name }}
+  spec:
+    replicas: {{ .Values.apiGateway.replicas }}
+    selector:
+      matchLabels:
+        app: {{ .Values.apiGateway.name }}
+    template:
+      metadata:
+        labels:
+          {{- include "nexus-infrastructure.apigateway.labels" . | nindent 8 }}
+          app: {{ .Values.apiGateway.name }}
+      spec:
+        {{- if .Values.global.nodeSelector }}
+        nodeSelector:
+          {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+        {{- end }}
+        containers:
+          - name: api-gateway
+            image: "{{ .Values.apiGateway.image.repository }}:{{ .Values.apiGateway.image.tag }}"
+            imagePullPolicy: {{ .Values.apiGateway.image.pullPolicy }}
+            ports:
+              - containerPort: {{ .Values.apiGateway.service.port }}
+                name: http
+            env:
+              - name: SPRING_PROFILES_ACTIVE
+                value: "docker,kafka"
+              - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+                value: "http://{{ .Values.eureka.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.eureka.service.port }}/eureka"
+              - name: EUREKA_INSTANCE_HOSTNAME
+                value: "{{ .Values.apiGateway.name }}"
+              - name: SPRING_CLOUD_CONFIG_URI
+                value: "http://{{ .Values.configServer.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.configServer.service.port }}"
+              - name: SPRING_APPLICATION_NAME
+                value: "gateway-service"
+              - name: SERVER_PORT
+                value: {{ .Values.apiGateway.service.port | quote }}
+              - name: SPRING_DATA_REDIS_HOST
+                value: "redis-service.data.svc.cluster.local"
+              - name: SPRING_DATA_REDIS_PORT
+                value: "6379"
+              - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+                value: "kafka-service.data.svc.cluster.local:9092"
+              - name: CORS_CONFIGURATION_ALLOWED_ORIGINS
+                value: {{ .Values.apiGateway.config.cors.allowedOrigins }}
+              - name: CORS_CONFIGURATION_ALLOWED_METHODS
+                value: {{ .Values.apiGateway.config.cors.allowedMethods }}
+              - name: CORS_CONFIGURATION_ALLOWED_HEADERS
+                value: {{ .Values.apiGateway.config.cors.allowedHeaders }}
+              - name: CORS_CONFIGURATION_ALLOW_CREDENTIALS
+                value: {{ .Values.apiGateway.config.cors.allowCredentials | quote }}
+              - name: CORS_CONFIGURATION_MAX_AGE
+                value: {{ .Values.apiGateway.config.cors.maxAge | quote }}
+            resources:
+              {{- toYaml .Values.apiGateway.resources | nindent 12 }}
+            livenessProbe:
+              httpGet:
+                path: /actuator/health
+                port: {{ .Values.apiGateway.service.port }}
+              initialDelaySeconds: 120
+              periodSeconds: 30
+              timeoutSeconds: 10
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /actuator/health/readiness
+                port: {{ .Values.apiGateway.service.port }}
+              initialDelaySeconds: 90
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 5
+            startupProbe:
+              httpGet:
+                path: /actuator/health
+                port: {{ .Values.apiGateway.service.port }}
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              failureThreshold: 20
+              timeoutSeconds: 5
+            volumeMounts:
+              - name: config-volume
+                mountPath: /app/config
+              - name: logs-volume
+                mountPath: /app/logs
+        volumes:
+          - name: config-volume
+            configMap:
+              name: {{ .Values.apiGateway.name }}-config
+          - name: logs-volume
+            emptyDir: { }
+        initContainers:
+          - name: wait-for-redis
+            image: busybox:1.35
+            command: [ 'sh', '-c' ]
+            args:
+              - |
+                echo "Waiting for Redis service..."
+                until nc -z redis-service.data.svc.cluster.local 6379; do
+                  echo "Redis not ready, waiting..."
+                  sleep 3
+                done
+                echo "Redis is ready!"
+          - name: wait-for-kafka
+            image: busybox:1.35
+            command: [ 'sh', '-c' ]
+            args:
+              - |
+                echo "Waiting for Kafka service..."
+                until nc -z kafka-service.data.svc.cluster.local 9092; do
+                  echo "Kafka not ready, waiting..."
+                  sleep 3
+                done
+                echo "Kafka is ready!"
+          - name: wait-for-eureka
+            image: busybox:1.35
+            command: [ 'sh', '-c' ]
+            args:
+              - |
+                echo "Waiting for Eureka server..."
+                until nc -z {{ .Values.eureka.name }}.{{ .Values.global.namespace }}.svc.cluster.local {{ .Values.eureka.service.port }}; do
+                  echo "Eureka not ready, waiting..."
+                  sleep 3
+                done
+                echo "Eureka is ready!"
+          - name: wait-for-config-server
+            image: busybox:1.35
+            command: [ 'sh', '-c' ]
+            args:
+              - |
+                echo "Waiting for Config server..."
+                until nc -z {{ .Values.configServer.name }}.{{ .Values.global.namespace }}.svc.cluster.local {{ .Values.configServer.service.port }}; do
+                  echo "Config server not ready, waiting..."
+                  sleep 3
+                done
+                echo "Config server is ready!"
+  {{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.configServer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.configServer.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.configserver.labels" . | nindent 4 }}
+    app: {{ .Values.configServer.name }}
+spec:
+  selector:
+    app: {{ .Values.configServer.name }}
+  ports:
+    - name: http
+      port: {{ .Values.configServer.service.port }}
+      targetPort: {{ .Values.configServer.service.port }}
+      protocol: TCP
+  type: {{ .Values.configServer.service.type }}
+{{- end }}

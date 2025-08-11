@@ -1,0 +1,17 @@
+{{- if and .Values.zipkin.enabled .Values.zipkin.storage.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.zipkin.name }}-pvc
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.zipkin.labels" . | nindent 4 }}
+    app: {{ .Values.zipkin.name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.zipkin.storage.size }}
+  storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

@@ -1,0 +1,91 @@
+{{- if .Values.configServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.configServer.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.configserver.labels" . | nindent 4 }}
+    app: {{ .Values.configServer.name }}
+spec:
+  replicas: {{ .Values.configServer.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.configServer.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-infrastructure.configserver.labels" . | nindent 8 }}
+        app: {{ .Values.configServer.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: config-server
+          image: "{{ .Values.configServer.image.repository }}:{{ .Values.configServer.image.tag }}"
+          imagePullPolicy: {{ .Values.configServer.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.configServer.service.port }}
+              name: http
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: SPRING_CONFIG_LOCATION
+              value: "classpath:/,file:/config/"
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: "http://{{ .Values.eureka.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.eureka.service.port }}/eureka"
+            - name: JAVA_OPTS
+              value: "-Deureka.client.serviceUrl.defaultZone=http://{{ .Values.eureka.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.eureka.service.port }}/eureka"
+          volumeMounts:
+            - name: config-override
+              mountPath: /config
+              readOnly: true
+          resources:
+            {{- toYaml .Values.configServer.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.configServer.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.configServer.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.configServer.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 15
+      volumes:
+        - name: config-override
+          configMap:
+            name: {{ .Values.configServer.name }}-config
+      initContainers:
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Testing Eureka connectivity..."
+              until nc -z {{ .Values.eureka.name }}.{{ .Values.global.namespace }}.svc.cluster.local {{ .Values.eureka.service.port }}; do
+                echo "Eureka not ready, waiting..."
+                sleep 5
+              done
+              echo "Eureka is reachable!"
+              sleep 15
+      restartPolicy: Always
+{{- end }}

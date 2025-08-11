@@ -1,0 +1,62 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.ingress.name }}-controller
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.ingress.labels" . | nindent 4 }}
+    app: {{ .Values.ingress.name }}
+spec:
+  replicas: {{ .Values.ingress.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.ingress.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-infrastructure.ingress.labels" . | nindent 8 }}
+        app: {{ .Values.ingress.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Values.ingress.name }}-serviceaccount
+      containers:
+        - name: nginx-ingress-controller
+          image: "{{ .Values.ingress.image.repository }}:{{ .Values.ingress.image.tag }}"
+          imagePullPolicy: {{ .Values.ingress.image.pullPolicy }}
+          args:
+            - /nginx-ingress-controller
+            - --ingress-class=nginx
+            - --election-id=ingress-controller-leader
+            - --controller-class=k8s.io/ingress-nginx
+            - --watch-ingress-without-class=true
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+            - name: webhook
+              containerPort: 8443
+          securityContext:
+            allowPrivilegeEscalation: true
+            runAsUser: 101
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+              drop:
+                - ALL
+          resources:
+            {{- toYaml .Values.ingress.resources | nindent 12 }}
+{{- end }}
