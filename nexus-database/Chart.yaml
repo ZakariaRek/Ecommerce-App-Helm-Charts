@@ -1,0 +1,352 @@
+apiVersion: v2
+name: nexus-databases
+description: A Helm chart for NexusCommerce database infrastructure
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - databases
+  - mongodb
+  - postgresql
+  - redis
+  - kafka
+  - microservices
+home: https://github.com/ZakariaRek/Ecommerce-App-Helm-Charts
+sources:
+  - https://github.com/ZakariaRek/Ecommerce-App-Helm-Charts
+maintainers:
+  - name: NexusCommerce Team
+    email: devops@nexuscommerce.com
+dependencies: []
+  ```
+  
+  ## values.yaml
+  ```yaml
+# Global configuration
+global:
+  namespace: data
+  storageClass: standard
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Environment configuration
+environment: development
+
+# MongoDB Configuration
+mongodb:
+  enabled: true
+
+  cart:
+    enabled: true
+    image:
+      repository: mongo
+      tag: "7.0"
+      pullPolicy: IfNotPresent
+
+    replicaCount: 1
+    database: cartdb
+
+    auth:
+      username: cartservice
+      password: cartservice123
+      # Use existing secret if available
+      existingSecret: ""
+      usernameKey: username
+      passwordKey: password
+
+    persistence:
+      enabled: true
+      size: 5Gi
+      accessModes:
+        - ReadWriteOnce
+
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 250m
+
+    service:
+      type: ClusterIP
+      port: 27017
+
+    livenessProbe:
+      initialDelaySeconds: 120
+      periodSeconds: 30
+      timeoutSeconds: 20
+      failureThreshold: 3
+
+    readinessProbe:
+      initialDelaySeconds: 90
+      periodSeconds: 15
+      timeoutSeconds: 20
+      failureThreshold: 5
+
+  user:
+    enabled: true
+    image:
+      repository: mongo
+      tag: "7.0"
+      pullPolicy: IfNotPresent
+
+    replicaCount: 2
+    database: User-service
+
+    auth:
+      username: userservice
+      password: userservice123
+      existingSecret: ""
+      usernameKey: username
+      passwordKey: password
+
+    persistence:
+      enabled: true
+      size: 5Gi
+      accessModes:
+        - ReadWriteOnce
+
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 1Gi
+        cpu: 500m
+
+    service:
+      type: ClusterIP
+      port: 27017
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+
+  # Common PostgreSQL settings
+  common:
+    image:
+      repository: postgres
+      tag: "15.4-alpine"
+      pullPolicy: IfNotPresent
+
+    persistence:
+      size: 10Gi
+      accessModes:
+        - ReadWriteOnce
+
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 250m
+
+  # Individual PostgreSQL instances
+  loyalty:
+    enabled: true
+    database: loyalty-service
+    auth:
+      username: loyaltyservice
+      password: loyaltyservice123
+      existingSecret: ""
+
+  order:
+    enabled: true
+    database: orderdb
+    auth:
+      username: orderservice
+      password: orderservice123
+      existingSecret: ""
+
+  payment:
+    enabled: true
+    database: paymentdb
+    auth:
+      username: paymentservice
+      password: paymentservice123
+      existingSecret: ""
+
+  product:
+    enabled: true
+    database: productdb
+    auth:
+      username: productservice
+      password: productservice123
+      existingSecret: ""
+
+  shipping:
+    enabled: true
+    database: shippingdb
+    auth:
+      username: shippingservice
+      password: shippingservice123
+      existingSecret: ""
+
+# Redis Configuration
+redis:
+  enabled: true
+
+  image:
+    repository: redis
+    tag: "7.2-alpine"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  auth:
+    enabled: false
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: ""
+
+  persistence:
+    enabled: true
+    size: 2Gi
+    accessModes:
+      - ReadWriteOnce
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 200m
+
+  service:
+    type: ClusterIP
+    port: 6379
+
+  config:
+    maxmemory: 512mb
+    maxmemory-policy: allkeys-lru
+    appendonly: "yes"
+    appendfsync: everysec
+
+# ZooKeeper Configuration
+zookeeper:
+  enabled: true
+
+  image:
+    repository: confluentinc/cp-zookeeper
+    tag: "7.4.0"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  persistence:
+    data:
+      enabled: true
+      size: 5Gi
+      accessModes:
+        - ReadWriteOnce
+    logs:
+      enabled: true
+      size: 2Gi
+      accessModes:
+        - ReadWriteOnce
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 250m
+
+  service:
+    type: ClusterIP
+    clientPort: 2181
+    followerPort: 2888
+    electionPort: 3888
+
+  config:
+    tickTime: 2000
+    initLimit: 10
+    syncLimit: 5
+    maxClientCnxns: 60
+
+# Kafka Configuration
+kafka:
+  enabled: true
+
+  image:
+    repository: confluentinc/cp-kafka
+    tag: "7.4.0"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+
+  resources:
+    requests:
+      memory: 1.5Gi
+      cpu: 500m
+    limits:
+      memory: 2.5Gi
+      cpu: 1000m
+
+  service:
+    type: ClusterIP
+    port: 9092
+    jmxPort: 9997
+
+  config:
+    numPartitions: 3
+    defaultReplicationFactor: 1
+    logRetentionHours: 168
+    logRetentionBytes: 1073741824
+    autoCreateTopicsEnable: true
+    heapOpts: "-Xmx1G -Xms1G"
+
+  zookeeper:
+    connect: "zookeeper-service:2181"
+
+# HPA Configuration
+autoscaling:
+  enabled: false
+
+  mongodb:
+    cart:
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 70
+    user:
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+
+  postgresql:
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+# Service Monitor for Prometheus (if using Prometheus Operator)
+serviceMonitor:
+  enabled: false
+  labels: {}
+  interval: 30s
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Security Context
+securityContext:
+  enabled: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Node Selection
+nodeSelector: {}
+tolerations: []
+affinity: {}
