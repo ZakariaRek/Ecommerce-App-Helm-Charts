@@ -1,0 +1,21 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ingress.name }}-controller
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.ingress.labels" . | nindent 4 }}
+    app: {{ .Values.ingress.name }}
+spec:
+  type: {{ .Values.ingress.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.ingress.service.ports.http }}
+      targetPort: 80
+    - name: https
+      port: {{ .Values.ingress.service.ports.https }}
+      targetPort: 443
+  selector:
+    app: {{ .Values.ingress.name }}
+{{- end }}

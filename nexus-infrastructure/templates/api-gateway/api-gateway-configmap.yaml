@@ -1,0 +1,137 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.apiGateway.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.apigateway.labels" . | nindent 4 }}
+    app: {{ .Values.apiGateway.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.apiGateway.service.port }}
+      error:
+        include-stacktrace: always
+        include-message: always
+        include-binding-errors: always
+
+    debug: true
+
+    spring:
+      profiles:
+        active: docker,kafka
+      config:
+        import: optional:configserver:http://{{ .Values.configServer.name }}:{{ .Values.configServer.service.port }}
+      kafka:
+        bootstrap-servers: kafka-service.data.svc.cluster.local:9092
+        codecs:
+          max-in-memory-size: 10MB
+      application:
+        name: gateway-service
+
+      data:
+        redis:
+          host: redis-service.data.svc.cluster.local
+          port: 6379
+          timeout: 2000ms
+          database: 0
+          lettuce:
+            pool:
+              max-active: 8
+              max-idle: 8
+              min-idle: 0
+              max-wait: -1ms
+
+      cloud:
+        gateway:
+          httpclient:
+            wiretap: true
+          httpserver:
+            wiretap: true
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origins: {{ .Values.apiGateway.config.cors.allowedOrigins }}
+                allowed-methods: {{ .Values.apiGateway.config.cors.allowedMethods }}
+                allowed-headers: {{ .Values.apiGateway.config.cors.allowedHeaders }}
+                allow-credentials: {{ .Values.apiGateway.config.cors.allowCredentials }}
+                max-age: {{ .Values.apiGateway.config.cors.maxAge }}
+
+          redis-rate-limiter:
+            replenish-rate: 10
+            burst-capacity: 20
+            requested-tokens: 1
+
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+
+    rate-limiting:
+      default:
+        limit: {{ .Values.apiGateway.config.rateLimiting.default.limit }}
+        window-seconds: {{ .Values.apiGateway.config.rateLimiting.default.windowSeconds }}
+        key-type: IP
+      endpoints:
+        auth:
+          limit: {{ .Values.apiGateway.config.rateLimiting.endpoints.auth.limit }}
+          window-seconds: {{ .Values.apiGateway.config.rateLimiting.endpoints.auth.windowSeconds }}
+          key-type: IP
+        payment:
+          limit: {{ .Values.apiGateway.config.rateLimiting.endpoints.payment.limit }}
+          window-seconds: {{ .Values.apiGateway.config.rateLimiting.endpoints.payment.windowSeconds }}
+          key-type: USER
+
+    eureka:
+      instance:
+        preferIpAddress: true
+        instanceId: ${spring.application.name}:${server.port}
+        hostname: {{ .Values.apiGateway.name }}
+        metadataMap:
+          instanceId: ${spring.application.name}:${server.port}
+      client:
+        registryFetchIntervalSeconds: 5
+        instanceInfoReplicationIntervalSeconds: 5
+        initialInstanceInfoReplicationIntervalSeconds: 5
+        eurekaServiceUrlPollIntervalSeconds: 5
+        cacheRefreshExecutorThreadPoolSize: 2
+        registerWithEureka: true
+        fetchRegistry: true
+        serviceUrl:
+          defaultZone: http://{{ .Values.eureka.name }}:{{ .Values.eureka.service.port }}/eureka
+
+    management:
+      security:
+        enabled: false
+      health:
+        circuitbreakers:
+          enabled: true
+        redis:
+          enabled: true
+        diskspace:
+          enabled: true
+      endpoint:
+        health:
+          show-details: "ALWAYS"
+          show-components: "ALWAYS"
+        circuitbreakers:
+          enabled: true
+        metrics:
+          enabled: true
+      endpoints:
+        web:
+          exposure:
+            include: "*"
+          cors:
+            allowed-origins: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http.server.requests: true
+          percentiles:
+            http.server.requests: 0.5, 0.95, 0.99
+        tags:
+          application: ${spring.application.name}
+{{- end }}

@@ -1,0 +1,59 @@
+{{- if .Values.configServer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.configServer.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.configserver.labels" . | nindent 4 }}
+    app: {{ .Values.configServer.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.configServer.service.port }}
+
+    spring:
+      application:
+        name: config-server
+      cloud:
+        config:
+          server:
+            git:
+              uri: {{ .Values.configServer.config.gitUri }}
+              clone-on-start: {{ .Values.configServer.config.cloneOnStart }}
+              default-label: {{ .Values.configServer.config.defaultLabel }}
+          discovery:
+            enabled: false
+      profiles:
+        active: docker
+
+    eureka:
+      client:
+        serviceUrl:
+          defaultZone: http://{{ .Values.eureka.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.eureka.service.port }}/eureka
+        register-with-eureka: true
+        fetch-registry: true
+        registry-fetch-interval-seconds: 30
+        initial-instance-info-replication-interval-seconds: 30
+      instance:
+        prefer-ip-address: true
+        hostname: {{ .Values.configServer.name }}
+        instance-id: ${spring.application.name}:{{ .Values.configServer.name }}:${server.port}
+        lease-renewal-interval-in-seconds: 30
+        lease-expiration-duration-in-seconds: 90
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,refresh,beans
+      endpoint:
+        health:
+          show-details: always
+
+    logging:
+      level:
+        com.netflix.eureka: DEBUG
+        com.netflix.discovery: DEBUG
+        org.springframework.cloud.netflix.eureka: DEBUG
+{{- end }}

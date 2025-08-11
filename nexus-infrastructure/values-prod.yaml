@@ -1,0 +1,106 @@
+global:
+  namespace: infrastructure
+  environment: production
+  storageClass: fast-ssd
+  nodeSelector:
+    node-role: infrastructure
+
+# Eureka Server Configuration for Production
+eureka:
+  enabled: true
+  replicas: 3  # High availability
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Config Server Configuration for Production
+configServer:
+  enabled: true
+  replicas: 2  # High availability
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# API Gateway Configuration for Production
+apiGateway:
+  enabled: true
+  replicas: 3  # High availability
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  config:
+    rateLimiting:
+      default:
+        limit: 1000
+        windowSeconds: 60
+      endpoints:
+        auth:
+          limit: 50
+          windowSeconds: 60
+        payment:
+          limit: 30
+          windowSeconds: 300
+
+# Zipkin Server Configuration for Production
+zipkin:
+  enabled: true
+  replicas: 2  # High availability
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  storage:
+    size: 10Gi
+    type: elasticsearch  # Use Elasticsearch for production
+
+# Ingress Controller Configuration for Production
+ingress:
+  enabled: true
+  replicas: 3  # High availability
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "800m"
+
+# Security for Production
+security:
+  enabled: true
+  networkPolicies:
+    enabled: true
+
+# Monitoring for Production
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+
+# Backup for Production
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30  # Keep for 30 days

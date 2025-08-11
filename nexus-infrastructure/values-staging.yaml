@@ -1,0 +1,86 @@
+global:
+  namespace: infrastructure
+  environment: staging
+  storageClass: standard
+  nodeSelector:
+    node-role: infrastructure
+
+# Eureka Server Configuration for Staging
+eureka:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "200m"
+    limits:
+      memory: "768Mi"
+      cpu: "400m"
+
+# Config Server Configuration for Staging
+configServer:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "200m"
+    limits:
+      memory: "768Mi"
+      cpu: "400m"
+
+# API Gateway Configuration for Staging
+apiGateway:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "200m"
+    limits:
+      memory: "768Mi"
+      cpu: "400m"
+
+# Zipkin Server Configuration for Staging
+zipkin:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "192Mi"
+      cpu: "75m"
+    limits:
+      memory: "384Mi"
+      cpu: "150m"
+
+  storage:
+    size: 2Gi
+
+# Ingress Controller Configuration for Staging
+ingress:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "96Mi"
+      cpu: "75m"
+    limits:
+      memory: "384Mi"
+      cpu: "300m"
+
+# Monitoring for Staging
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+
+# Backup for Staging
+backup:
+  enabled: true
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  retention: 14  # Keep for 14 days

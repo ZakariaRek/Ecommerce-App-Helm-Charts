@@ -1,0 +1,92 @@
+global:
+  namespace: infrastructure
+  environment: development
+  storageClass: standard
+  nodeSelector:
+    node-role: infrastructure
+
+# Eureka Server Configuration for Development
+eureka:
+  enabled: true
+  replicas: 1  # Single replica for dev
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  config:
+    selfPreservation: false
+    evictionInterval: 10000
+
+# Config Server Configuration for Development
+configServer:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# API Gateway Configuration for Development
+apiGateway:
+  enabled: true
+  replicas: 1  # Single replica for dev
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  config:
+    cors:
+      allowedOrigins: "http://localhost:3000,http://localhost:8080,http://localhost:3001"
+
+# Zipkin Server Configuration for Development
+zipkin:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "100m"
+
+  storage:
+    size: 1Gi  # Smaller storage for dev
+    type: mem
+
+# Ingress Controller Configuration for Development
+ingress:
+  enabled: true
+  replicas: 1  # Single replica for dev
+
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+  service:
+    type: NodePort  # NodePort for dev access
+
+# Monitoring for Development
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true

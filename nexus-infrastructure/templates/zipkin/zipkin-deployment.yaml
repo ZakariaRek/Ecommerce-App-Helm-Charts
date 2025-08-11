@@ -1,0 +1,72 @@
+{{- if .Values.zipkin.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.zipkin.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.zipkin.labels" . | nindent 4 }}
+    app: {{ .Values.zipkin.name }}
+spec:
+  replicas: {{ .Values.zipkin.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.zipkin.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-infrastructure.zipkin.labels" . | nindent 8 }}
+        app: {{ .Values.zipkin.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: zipkin
+          image: "{{ .Values.zipkin.image.repository }}:{{ .Values.zipkin.image.tag }}"
+          imagePullPolicy: {{ .Values.zipkin.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.zipkin.service.port }}
+              name: http
+          env:
+            - name: STORAGE_TYPE
+              value: {{ .Values.zipkin.storage.type }}
+            - name: JAVA_OPTS
+              value: "-XX:+UseG1GC -Xms256m -Xmx512m"
+          {{- if .Values.zipkin.storage.enabled }}
+          volumeMounts:
+            - name: zipkin-data
+              mountPath: /zipkin-data
+          {{- end }}
+          resources:
+            {{- toYaml .Values.zipkin.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.zipkin.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.zipkin.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.zipkin.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 20
+      {{- if .Values.zipkin.storage.enabled }}
+      volumes:
+        - name: zipkin-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.zipkin.name }}-pvc
+      {{- end }}
+{{- end }}

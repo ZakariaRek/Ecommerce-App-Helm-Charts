@@ -1,0 +1,19 @@
+{{- if .Values.eureka.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.eureka.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.eureka.labels" . | nindent 4 }}
+    app: {{ .Values.eureka.name }}
+spec:
+  selector:
+    app: {{ .Values.eureka.name }}
+  ports:
+    - name: http
+      port: {{ .Values.eureka.service.port }}
+      targetPort: {{ .Values.eureka.service.port }}
+      protocol: TCP
+  type: {{ .Values.eureka.service.type }}
+{{- end }}

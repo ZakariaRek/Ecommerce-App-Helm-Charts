@@ -1,0 +1,82 @@
+{{- if .Values.eureka.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.eureka.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.eureka.labels" . | nindent 4 }}
+    app: {{ .Values.eureka.name }}
+spec:
+  replicas: {{ .Values.eureka.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.eureka.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-infrastructure.eureka.labels" . | nindent 8 }}
+        app: {{ .Values.eureka.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: eureka-server
+          image: "{{ .Values.eureka.image.repository }}:{{ .Values.eureka.image.tag }}"
+          imagePullPolicy: {{ .Values.eureka.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.eureka.service.port }}
+              name: http
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
+              value: "false"
+            - name: EUREKA_CLIENT_FETCH_REGISTRY
+              value: "false"
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "{{ .Values.eureka.name }}"
+            - name: EUREKA_SERVER_ENABLE_SELF_PRESERVATION
+              value: {{ .Values.eureka.config.selfPreservation | quote }}
+            - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+              value: "1.0"
+            {{- if .Values.zipkin.enabled }}
+            - name: MANAGEMENT_ZIPKIN_TRACING_ENDPOINT
+              value: "http://{{ .Values.zipkin.name }}.{{ .Values.global.namespace }}:{{ .Values.zipkin.service.port }}/api/v2/spans"
+            {{- end }}
+          volumeMounts:
+            - name: eureka-config
+              mountPath: /config/application.yml
+              subPath: application.yml
+          resources:
+            {{- toYaml .Values.eureka.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.eureka.service.port }}
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.eureka.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.eureka.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: eureka-config
+          configMap:
+            name: {{ .Values.eureka.name }}-config
+      restartPolicy: Always
+{{- end }}

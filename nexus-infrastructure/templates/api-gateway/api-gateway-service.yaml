@@ -1,0 +1,19 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.apiGateway.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-infrastructure.apigateway.labels" . | nindent 4 }}
+    app: {{ .Values.apiGateway.name }}
+spec:
+  selector:
+    app: {{ .Values.apiGateway.name }}
+  ports:
+    - name: http
+      port: {{ .Values.apiGateway.service.port }}
+      targetPort: {{ .Values.apiGateway.service.port }}
+      protocol: TCP
+  type: {{ .Values.apiGateway.service.type }}
+{{- end }}

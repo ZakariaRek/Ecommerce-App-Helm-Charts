@@ -1,0 +1,214 @@
+global:
+  namespace: infrastructure
+  environment: production
+  storageClass: standard
+  nodeSelector:
+    node-role: infrastructure
+
+  # Global resource defaults
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# Eureka Server Configuration
+eureka:
+  enabled: true
+  name: eureka-server
+  image:
+    repository: yahyazakaria123/ecommerce-app-discovery-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8761
+
+  config:
+    selfPreservation: false
+    evictionInterval: 10000
+    responseCache: 5000
+
+# Config Server Configuration
+configServer:
+  enabled: true
+  name: config-server
+  image:
+    repository: yahyazakaria123/ecommerce-app-config-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8888
+
+  config:
+    gitUri: "https://github.com/Saoudyahya/Ecommerce-App-Config-serveur-repo.git"
+    cloneOnStart: true
+    defaultLabel: main
+
+# API Gateway Configuration
+apiGateway:
+  enabled: true
+  name: api-gateway
+  image:
+    repository: yahyazakaria123/ecommerce-app-api-gateway-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8099
+
+  config:
+    cors:
+      allowedOrigins: "http://localhost:3000,http://localhost:8080"
+      allowedMethods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+      allowedHeaders: "*"
+      allowCredentials: true
+      maxAge: 3600
+
+    rateLimiting:
+      default:
+        limit: 100
+        windowSeconds: 60
+      endpoints:
+        auth:
+          limit: 5
+          windowSeconds: 60
+        payment:
+          limit: 3
+          windowSeconds: 300
+
+  secrets:
+    jwtSecret: "c03a546beee68b92784e681b537540349c386d02b6dbf9917cf438e47e5c1ee93fdebc55652af00cb3ebc6bff17dc3bedaa33ea6cfdd1959b114ede448c4ac878530221cc3c32f1ef6d5951d0c6b1398bc01c563c7638a0000e6b4064c5733c5552aa232aa8547be8b4b1f8dddacac8256f319acd6832ff5ae93653583e20624fc99dab8489d33e582cf621444e9d944442559707a1f92d556862bb53ce12deb3ec17d3a8bc3c7159b672e4f02189af368a8e71d8547a5b71518de7a1d9a4997d20b4f646fae73e73c2666679b21cdec5544b7431975bb0a27d4e124ec5f13bf8f338ce3ba5ad8b3af1a8aae211bef3eb6ca4f8a24e6b80662c94530e168b0dc"
+
+# Zipkin Server Configuration
+zipkin:
+  enabled: true
+  name: zipkin-server
+  image:
+    repository: openzipkin/zipkin
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: ClusterIP
+    port: 9411
+
+  storage:
+    enabled: true
+    size: 2Gi
+    type: mem  # mem, elasticsearch, mysql, cassandra
+
+# Ingress Controller Configuration
+ingress:
+  enabled: true
+  name: ingress-nginx
+  image:
+    repository: registry.k8s.io/ingress-nginx/controller
+    tag: "v1.8.1"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  service:
+    type: LoadBalancer
+    ports:
+      http: 80
+      https: 443
+
+  config:
+    enableCors: true
+    corsAllowMethods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
+    corsAllowHeaders: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+    clientMaxBodySize: "50m"
+    proxyConnectTimeout: "60"
+    proxyReadTimeout: "60"
+
+# Service Mesh (Optional Istio Gateway)
+serviceMesh:
+  enabled: false
+  istio:
+    enabled: false
+    gateway:
+      enabled: false
+
+# Storage Configuration
+storage:
+  enabled: true
+  className: standard
+  reclaimPolicy: Retain
+
+# Security
+security:
+  enabled: true
+  networkPolicies:
+    enabled: false  # Enable for production
+  rbac:
+    enabled: true
+
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  healthChecks:
+    enabled: true
+
+# Backup
+backup:
+  enabled: false
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 7  # Keep for 7 days
