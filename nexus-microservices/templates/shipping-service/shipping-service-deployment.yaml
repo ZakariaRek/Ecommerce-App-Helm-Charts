@@ -1,5 +1,5 @@
 # nexus-microservices/templates/shipping-service/shipping-service-deployment.yaml
-  {{- if .Values.shippingService.enabled }}
+{{- if .Values.shippingService.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -235,12 +235,12 @@ spec:
             - name: tmp-volume
               mountPath: /tmp
 
-      # Volumes
+      # Volumes - FIXED: Corrected the syntax error
       volumes:
         - name: config-volume
           configMap:
             name: {{ .Values.shippingService.name }}-config
-          -name: logs-volume
+        - name: logs-volume
           emptyDir: {}
         - name: tmp-volume
           emptyDir: {}
@@ -309,7 +309,7 @@ spec:
         fsGroup: 65534
 
       # Service Account (for RBAC if needed)
-#      serviceAccountName: {{ .Values.security.rbac.serviceAccountName | default "default" }}
+      serviceAccountName: {{ .Values.security.rbac.serviceAccountName | default "default" }}
 
       # Restart Policy
       restartPolicy: Always

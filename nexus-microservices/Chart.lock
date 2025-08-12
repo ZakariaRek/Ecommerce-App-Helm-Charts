@@ -1,0 +1,9 @@
+dependencies:
+- name: nexus-infrastructure
+  repository: file://../nexus-infrastructure
+  version: 0.1.0
+- name: nexus-database
+  repository: file://../nexus-database
+  version: 0.1.0
+digest: sha256:395d85d93037345a2633107311676c3211cbf3bd1d7ed2920e57f6f404846544
+generated: "2025-08-12T15:19:27.5274472+01:00"
