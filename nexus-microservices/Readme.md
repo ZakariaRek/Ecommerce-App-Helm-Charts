@@ -1067,34 +1067,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **💬 Discord**: [NexusCommerce Community](https://discord.gg/nexuscommerce)
 - **📧 Email**: support@nexuscommerce.com
 
-## 🗺️ Roadmap
-
-```mermaid
-gantt
-    title NexusCommerce Microservices Roadmap
-    dateFormat  YYYY-MM-DD
-    section Phase 1
-    Service Mesh Integration    :active, p1, 2024-01-01, 2024-03-31
-    Advanced Monitoring        :active, p2, 2024-02-01, 2024-04-30
-    
-    section Phase 2
-    GraphQL Federation         :p3, 2024-04-01, 2024-06-30
-    Event Sourcing            :p4, 2024-05-01, 2024-07-31
-    
-    section Phase 3
-    Multi-region Deployment   :p5, 2024-07-01, 2024-09-30
-    Chaos Engineering        :p6, 2024-08-01, 2024-10-31
-    
-    section Phase 4
-    AI/ML Integration         :p7, 2024-10-01, 2024-12-31
-    Advanced Security         :p8, 2024-11-01, 2025-01-31
-```
-
-- ✅ **Q1 2024**: Service mesh complete integration
-- 🔄 **Q2 2024**: Advanced monitoring and alerting
-- 📋 **Q3 2024**: GraphQL federation gateway
-- 🎯 **Q4 2024**: Event sourcing implementation
-- 🚀 **2025**: Multi-region deployment support
 
 ---
 
