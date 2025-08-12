@@ -1,0 +1,199 @@
+# nexus-microservices/templates/payment-service/payment-service-configmap.yaml
+  {{- if .Values.paymentService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.paymentService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: {{ .Values.paymentService.name }}
+data:
+  # Server settings
+  SERVER_PORT: {{ .Values.paymentService.service.port | quote }}
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+
+  # Database settings
+  DB_HOST: {{ .Values.paymentService.config.database.service | quote }}
+  DB_PORT: {{ .Values.global.data.postgresql.port | quote }}
+  DB_NAME: {{ .Values.paymentService.config.database.name | quote }}
+
+  # Enhanced features
+  ENABLE_STRIPE: {{ .Values.paymentService.config.features.stripe | quote }}
+  ENABLE_PAYPAL: {{ .Values.paymentService.config.features.paypal | quote }}
+  ENABLE_REFUNDS: {{ .Values.paymentService.config.features.refunds | quote }}
+  ENABLE_WEBHOOKS: {{ .Values.paymentService.config.features.webhooks | quote }}
+
+  # Eureka settings
+  EUREKA_PREFER_IP_ADDRESS: "true"
+  EUREKA_INSTANCE_HOSTNAME: {{ .Values.paymentService.name | quote }}
+  EUREKA_INSTANCE_ID: "payment-service:{{ .Values.paymentService.service.port }}"
+  EUREKA_URL: {{ .Values.global.infrastructure.eureka.url | quote }}
+
+  # Kafka settings
+  KAFKA_BROKERS: {{ .Values.global.data.kafka.brokers | quote }}
+  KAFKA_CONSUMER_GROUP: "payment-service-group"
+
+  # Logging Configuration
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # Security Configuration
+  MAX_PAYMENT_AMOUNT: {{ .Values.paymentService.config.security.maxPaymentAmount | quote }}
+  MIN_PAYMENT_AMOUNT: {{ .Values.paymentService.config.security.minPaymentAmount | quote }}
+  DEFAULT_CURRENCY: {{ .Values.paymentService.config.security.defaultCurrency | quote }}
+
+  # Service Information
+  SERVICE_VERSION: "1.0.0"
+  SERVICE_NAME: "payment-service"
+
+  # Performance Monitoring
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+  # Go Runtime settings
+  GOOS: "linux"
+  GOARCH: "amd64"
+  GIN_MODE: "release"
+
+  # Payment Processing Configuration
+  payment-config.yaml: |
+    payment:
+      providers:
+        stripe:
+          enabled: {{ .Values.paymentService.config.features.stripe }}
+          api_version: "2023-10-16"
+          webhook_tolerance: 300
+          retry_attempts: 3
+          timeout: 30s
+        paypal:
+          enabled: {{ .Values.paymentService.config.features.paypal }}
+          environment: {{ if eq .Values.global.environment "production" }}"live"{{ else }}"sandbox"{{ end }}
+          timeout: 45s
+        square:
+          enabled: false
+          environment: {{ if eq .Values.global.environment "production" }}"production"{{ else }}"sandbox"{{ end }}
+      
+      security:
+        max_amount: {{ .Values.paymentService.config.security.maxPaymentAmount }}
+        min_amount: {{ .Values.paymentService.config.security.minPaymentAmount }}
+        default_currency: {{ .Values.paymentService.config.security.defaultCurrency }}
+        encryption:
+          enabled: true
+          algorithm: "AES-256-GCM"
+        pci_compliance:
+          enabled: true
+          data_retention_days: 90
+      
+      features:
+        refunds:
+          enabled: {{ .Values.paymentService.config.features.refunds }}
+          partial_refunds: true
+          auto_refund_timeout: "24h"
+        recurring:
+          enabled: true
+          max_attempts: 3
+          retry_intervals: ["1h", "24h", "72h"]
+        fraud_detection:
+          enabled: true
+          max_daily_amount: 50000.00
+          velocity_checks: true
+        webhooks:
+          enabled: {{ .Values.paymentService.config.features.webhooks }}
+          retry_attempts: 5
+          timeout: 10s
+      
+      monitoring:
+        metrics:
+          enabled: true
+          detailed: {{ if eq .Values.global.environment "production" }}false{{ else }}true{{ end }}
+        alerts:
+          failed_payment_threshold: 5
+          high_amount_threshold: 10000.00
+        audit_logging:
+          enabled: true
+          retention_days: 365
+
+  # Application Configuration for Go service
+  app-config.yaml: |
+    server:
+      port: {{ .Values.paymentService.service.port }}
+      timeout:
+        read: "30s"
+        write: "30s"
+        idle: "120s"
+    
+    database:
+      host: {{ .Values.paymentService.config.database.service }}
+      port: {{ .Values.global.data.postgresql.port }}
+      name: {{ .Values.paymentService.config.database.name }}
+      ssl_mode: "disable"
+      max_open_connections: 25
+      max_idle_connections: 5
+      connection_max_lifetime: "5m"
+    
+    redis:
+      host: {{ .Values.global.data.redis.host }}
+      port: {{ .Values.global.data.redis.port }}
+      database: {{ .Values.paymentService.config.database.redisDatabase }}
+      password: ""
+      max_retries: 3
+      pool_size: 10
+    
+    kafka:
+      brokers: {{ .Values.global.data.kafka.brokers }}
+      consumer_group: "payment-service-group"
+      topics:
+        payment_created: "payment-created"
+        payment_updated: "payment-updated"
+        payment_failed: "payment-failed"
+        payment_succeeded: "payment-succeeded"
+        refund_created: "refund-created"
+        refund_processed: "refund-processed"
+    
+    eureka:
+      url: {{ .Values.global.infrastructure.eureka.url }}
+      instance_id: "payment-service:{{ .Values.paymentService.service.port }}"
+      hostname: {{ .Values.paymentService.name }}
+      health_check_url: "http://{{ .Values.paymentService.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.paymentService.service.port }}/health"
+      status_page_url: "http://{{ .Values.paymentService.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.paymentService.service.port }}/info"
+    
+    logging:
+      level: {{ if eq .Values.global.environment "production" }}"info"{{ else }}"debug"{{ end }}
+      format: "json"
+      output: "stdout"
+    
+    monitoring:
+      enabled: true
+      prometheus:
+        enabled: true
+        path: "/metrics"
+      health_check:
+        enabled: true
+        path: "/health"
+    
+    security:
+      cors:
+        enabled: true
+        allowed_origins:
+          - "*"
+        allowed_methods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+        allowed_headers:
+          - "Content-Type"
+          - "Authorization"
+          - "X-Request-ID"
+      rate_limiting:
+        enabled: true
+        requests_per_minute: 100
+        burst: 20
+      circuit_breaker:
+        enabled: true
+        failure_threshold: 5
+        timeout: "30s"
+        max_requests: 3
+  {{- end }}

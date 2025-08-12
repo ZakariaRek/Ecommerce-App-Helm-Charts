@@ -1,0 +1,384 @@
+# nexus-microservices/templates/autoscaling/hpa.yaml
+{{- if .Values.autoscaling.enabled }}
+
+  {{- if .Values.userService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.userService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.userservice.labels" . | nindent 4 }}
+    app: {{ .Values.userService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.userService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.productService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.productService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.productservice.labels" . | nindent 4 }}
+    app: {{ .Values.productService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.productService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    # Custom metric for product search requests
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+          selector:
+            matchLabels:
+              service: product-service
+        target:
+          type: AverageValue
+          averageValue: "30"
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.cartService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.cartService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.cartservice.labels" . | nindent 4 }}
+    app: {{ .Values.cartService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.cartService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    # Custom metric for active cart sessions
+    - type: Pods
+      pods:
+        metric:
+          name: active_cart_sessions
+          selector:
+            matchLabels:
+              service: cart-service
+        target:
+          type: AverageValue
+          averageValue: "100"
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.orderService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.orderService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.orderservice.labels" . | nindent 4 }}
+    app: {{ .Values.orderService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.orderService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    # Custom metric for order processing queue
+    - type: Pods
+      pods:
+        metric:
+          name: order_queue_size
+          selector:
+            matchLabels:
+              service: order-service
+        target:
+          type: AverageValue
+          averageValue: "10"
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.paymentService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.paymentService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: {{ .Values.paymentService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.paymentService.name }}
+  minReplicas: {{ max .Values.autoscaling.minReplicas 2 }}  # Minimum 2 for payment service
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    # Custom metric for payment processing requests
+    - type: Pods
+      pods:
+        metric:
+          name: payment_requests_per_second
+          selector:
+            matchLabels:
+              service: payment-service
+        target:
+          type: AverageValue
+          averageValue: "5"  # Conservative for payment processing
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    # More conservative scaling for payment service
+    scaleDown:
+      stabilizationWindowSeconds: 600  # 10 minutes
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 180
+    scaleUp:
+      stabilizationWindowSeconds: 120  # 2 minutes
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120
+  {{- else }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 180
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.notificationService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.notificationService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.notificationservice.labels" . | nindent 4 }}
+    app: {{ .Values.notificationService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.notificationService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    # Custom metric for notification queue size
+    - type: Pods
+      pods:
+        metric:
+          name: notification_queue_size
+          selector:
+            matchLabels:
+              service: notification-service
+        target:
+          type: AverageValue
+          averageValue: "50"
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.loyaltyService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.loyaltyService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.loyaltyservice.labels" . | nindent 4 }}
+    app: {{ .Values.loyaltyService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.loyaltyService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- if .Values.shippingService.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.shippingService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.shippingservice.labels" . | nindent 4 }}
+    app: {{ .Values.shippingService.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.shippingService.name }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    # Custom metric for active shipments being tracked
+    - type: Pods
+      pods:
+        metric:
+          name: active_shipments
+          selector:
+            matchLabels:
+              service: shipping-service
+        target:
+          type: AverageValue
+          averageValue: "20"
+  {{- if .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml .Values.autoscaling.behavior | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+
+  {{- end }}

@@ -1,0 +1,437 @@
+# nexus-microservices/templates/monitoring/servicemonitor.yaml
+  {{- if and .Values.monitoring.enabled .Values.monitoring.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-servicemonitor
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-monitor
+spec:
+  selector:
+    matchLabels:
+      component: microservices
+  endpoints:
+  {{- if .Values.userService.enabled }}
+  - port: http
+    path: {{ .Values.userService.config.contextPath }}/actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.userService.service.port }}
+    params:
+      module: [user-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: user-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.productService.enabled }}
+  - port: http
+    path: {{ .Values.productService.config.contextPath }}/actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.productService.service.port }}
+    params:
+      module: [product-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: product-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.cartService.enabled }}
+  - port: http
+    path: {{ .Values.cartService.config.contextPath }}/actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.cartService.service.port }}
+    params:
+      module: [cart-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: cart-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.orderService.enabled }}
+  - port: http
+    path: /actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.orderService.service.port }}
+    params:
+      module: [order-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: order-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.paymentService.enabled }}
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.paymentService.service.port }}
+    params:
+      module: [payment-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: payment-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.notificationService.enabled }}
+  - port: http
+    path: /actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.notificationService.service.port }}
+    params:
+      module: [notification-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: notification-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.loyaltyService.enabled }}
+  - port: http
+    path: {{ .Values.loyaltyService.config.contextPath }}/actuator/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.loyaltyService.service.port }}
+    params:
+      module: [loyalty-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: loyalty-service
+        targetLabel: microservice
+  {{- end }}
+  {{- if .Values.shippingService.enabled }}
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    targetPort: {{ .Values.shippingService.service.port }}
+    params:
+      module: [shipping-service]
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_service_name]
+        targetLabel: service_name
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: instance
+      - replacement: shipping-service
+        targetLabel: microservice
+  {{- end }}
+  {{- end }}
+
+---
+# nexus-microservices/templates/monitoring/prometheusrule.yaml
+  {{- if and .Values.monitoring.enabled .Values.monitoring.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-alerts
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-alerts
+spec:
+  groups:
+    - name: microservices.rules
+      interval: 30s
+      rules:
+        # High-level service availability
+        - alert: MicroserviceDown
+          expr: up{job=~".*microservices.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            service: "{{ "{{ $labels.microservice }}" }}"
+          annotations:
+            summary: "Microservice {{ "{{ $labels.microservice }}" }} is down"
+            description: "{{ "{{ $labels.microservice }}" }} has been down for more than 1 minute."
+
+        # High CPU usage
+        - alert: HighCPUUsage
+          expr: (sum(rate(container_cpu_usage_seconds_total{namespace="microservices"}[5m])) by (pod) * 100) > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on {{ "{{ $labels.pod }}" }}"
+            description: "CPU usage is above 80% for pod {{ "{{ $labels.pod }}" }} for more than 5 minutes."
+
+        # High memory usage
+        - alert: HighMemoryUsage
+          expr: (container_memory_usage_bytes{namespace="microservices"} / container_spec_memory_limit_bytes * 100) > 85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ "{{ $labels.pod }}" }}"
+            description: "Memory usage is above 85% for pod {{ "{{ $labels.pod }}" }} for more than 5 minutes."
+
+        # HTTP error rate
+        - alert: HighHTTPErrorRate
+          expr: (sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m]))) * 100 > 5
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High HTTP error rate"
+            description: "HTTP 5xx error rate is above 5% for more than 2 minutes."
+
+        # Database connection issues
+        - alert: DatabaseConnectionHigh
+          expr: hikaricp_connections_active{namespace="microservices"} / hikaricp_connections_max > 0.8
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High database connection usage"
+            description: "Database connection pool usage is above 80% for {{ "{{ $labels.instance }}" }}."
+
+        # Kafka consumer lag
+        - alert: KafkaConsumerLag
+          expr: kafka_consumer_lag_sum{namespace="microservices"} > 1000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High Kafka consumer lag"
+            description: "Kafka consumer lag is above 1000 messages for {{ "{{ $labels.instance }}" }}."
+
+        # Payment service specific alerts
+        - alert: PaymentServiceHighLatency
+          expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{microservice="payment-service"}[5m])) > 2
+          for: 2m
+          labels:
+            severity: critical
+            service: payment
+          annotations:
+            summary: "Payment service high latency"
+            description: "95th percentile latency for payment service is above 2 seconds."
+
+        - alert: PaymentFailureRate
+          expr: (sum(rate(payment_transactions_total{status="failed"}[5m])) / sum(rate(payment_transactions_total[5m]))) * 100 > 1
+          for: 1m
+          labels:
+            severity: critical
+            service: payment
+          annotations:
+            summary: "High payment failure rate"
+            description: "Payment failure rate is above 1% for more than 1 minute."
+
+        # User service alerts
+        - alert: UserAuthenticationFailures
+          expr: rate(authentication_failures_total[5m]) > 10
+          for: 2m
+          labels:
+            severity: warning
+            service: user
+          annotations:
+            summary: "High authentication failure rate"
+            description: "Authentication failures exceed 10 per minute."
+
+        # Cart service alerts
+        - alert: CartSessionTimeout
+          expr: rate(cart_session_timeouts_total[5m]) > 5
+          for: 3m
+          labels:
+            severity: warning
+            service: cart
+          annotations:
+            summary: "High cart session timeout rate"
+            description: "Cart session timeouts exceed 5 per minute."
+
+        # Order service alerts
+        - alert: OrderProcessingDelay
+          expr: histogram_quantile(0.95, rate(order_processing_duration_seconds_bucket[5m])) > 30
+          for: 5m
+          labels:
+            severity: warning
+            service: order
+          annotations:
+            summary: "Order processing delays"
+            description: "95th percentile order processing time exceeds 30 seconds."
+
+        # Notification service alerts
+        - alert: NotificationDeliveryFailure
+          expr: (sum(rate(notification_delivery_total{status="failed"}[5m])) / sum(rate(notification_delivery_total[5m]))) * 100 > 5
+          for: 2m
+          labels:
+            severity: warning
+            service: notification
+          annotations:
+            summary: "High notification delivery failure rate"
+            description: "Notification delivery failure rate is above 5%."
+
+        # Pod restart alerts
+        - alert: PodRestartHigh
+          expr: increase(kube_pod_container_status_restarts_total{namespace="microservices"}[1h]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ "{{ $labels.pod }}" }} restarting frequently"
+            description: "Pod {{ "{{ $labels.pod }}" }} has restarted more than 3 times in the last hour."
+
+        # Persistent Volume alerts
+        - alert: PVCStorageRunningLow
+          expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) * 100 < 10
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PVC storage running low"
+            description: "PVC {{ "{{ $labels.persistentvolumeclaim }}" }} has less than 10% storage remaining."
+
+    - name: business-metrics.rules
+      interval: 60s
+      rules:
+        # Business KPIs
+        - record: nexus:order_completion_rate
+          expr: (sum(rate(orders_completed_total[5m])) / sum(rate(orders_created_total[5m]))) * 100
+
+        - record: nexus:revenue_per_minute
+          expr: sum(rate(payment_amount_total[1m]))
+
+        - record: nexus:active_cart_sessions
+          expr: sum(cart_active_sessions)
+
+        - record: nexus:user_registration_rate
+          expr: sum(rate(user_registrations_total[5m]))
+
+        # Service health scores
+        - record: nexus:service_health_score
+          expr: |
+            (
+              (up{job=~".*microservices.*"} * 40) +
+              ((1 - (rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m]))) * 30) +
+              ((container_memory_usage_bytes / container_spec_memory_limit_bytes < 0.8) * 20) +
+              ((rate(container_cpu_usage_seconds_total[5m]) < 0.8) * 10)
+            )
+  {{- end }}
+
+---
+# nexus-microservices/templates/monitoring/grafana-dashboard.yaml
+  {{- if and .Values.monitoring.enabled .Values.monitoring.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-grafana-dashboard
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  nexus-microservices-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "NexusCommerce Microservices Overview",
+        "tags": ["nexuscommerce", "microservices"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Service Health Overview",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "up{job=~\".*microservices.*\"}",
+                "legendFormat": "{{ "{{ microservice }}" }}"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "thresholds": {
+                  "steps": [
+                    {"color": "red", "value": 0},
+                    {"color": "green", "value": 1}
+                  ]
+                }
+              }
+            },
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "HTTP Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"microservices\"}[5m])) by (microservice)",
+                "legendFormat": "{{ "{{ microservice }}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Response Time (95th percentile)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"microservices\"}[5m])) by (le, microservice))",
+                "legendFormat": "{{ "{{ microservice }}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "(container_memory_usage_bytes{namespace=\"microservices\"} / container_spec_memory_limit_bytes) * 100",
+                "legendFormat": "{{ "{{ pod }}" }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "(sum(rate(http_server_requests_seconds_count{status=~\"5..\", namespace=\"microservices\"}[5m])) by (microservice) / sum(rate(http_server_requests_seconds_count{namespace=\"microservices\"}[5m])) by (microservice)) * 100",
+                "legendFormat": "{{ "{{ microservice }}" }} errors"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }
+  {{- end }}

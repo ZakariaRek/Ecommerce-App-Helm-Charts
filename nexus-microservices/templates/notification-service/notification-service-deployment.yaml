@@ -1,0 +1,471 @@
+# nexus-microservices/templates/notification-service/notification-service-deployment.yaml
+  {{- if .Values.notificationService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.notificationService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.notificationservice.labels" . | nindent 4 }}
+    app: {{ .Values.notificationService.name }}
+spec:
+  replicas: {{ .Values.notificationService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.notificationService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.notificationservice.labels" . | nindent 8 }}
+        app: {{ .Values.notificationService.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: notification-service
+          image: "{{ .Values.notificationService.image.repository }}:{{ .Values.notificationService.image.tag }}"
+          imagePullPolicy: {{ .Values.notificationService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.notificationService.service.port }}
+              name: http
+            - containerPort: 8087
+              name: sse
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1536m -Xms512m -XX:MaxMetaspaceSize=256m"
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.notificationService.config.profiles.active | quote }}
+            - name: SPRING_APPLICATION_NAME
+              value: "notification-service"
+            - name: SERVER_PORT
+              value: {{ .Values.notificationService.service.port | quote }}
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: {{ .Values.notificationService.name | quote }}
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: {{ .Values.global.infrastructure.configServer.url | quote }}
+            # MongoDB Configuration
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://{{ .Values.notificationService.config.database.service }}:{{ .Values.global.data.mongodb.port }}/{{ .Values.notificationService.config.database.name }}"
+            - name: SPRING_DATA_MONGODB_DATABASE
+              value: {{ .Values.notificationService.config.database.name | quote }}
+            # Redis Configuration
+            - name: SPRING_DATA_REDIS_HOST
+              value: {{ .Values.global.data.redis.host | quote }}
+            - name: SPRING_DATA_REDIS_PORT
+              value: {{ .Values.global.data.redis.port | quote }}
+            - name: SPRING_DATA_REDIS_DATABASE
+              value: {{ .Values.notificationService.config.database.redisDatabase | quote }}
+            # Kafka Configuration
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "notification-service-group"
+            # Email Configuration
+            - name: SPRING_MAIL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.notificationService.name }}-secrets
+                  key: mail-host
+            - name: SPRING_MAIL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.notificationService.name }}-secrets
+                  key: mail-port
+            - name: SPRING_MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.notificationService.name }}-secrets
+                  key: mail-username
+            - name: SPRING_MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.notificationService.name }}-secrets
+                  key: mail-password
+            # Notification specific configuration
+            - name: NOTIFICATION_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.notificationService.name }}-secrets
+                  key: email-from
+            - name: NOTIFICATION_SMS_ENABLED
+              value: {{ .Values.notificationService.config.features.sms | quote }}
+            - name: NOTIFICATION_PUSH_ENABLED
+              value: {{ .Values.notificationService.config.features.push | quote }}
+            - name: NOTIFICATION_WEBSOCKET_ENABLED
+              value: {{ .Values.notificationService.config.features.websocket | quote }}
+            - name: NOTIFICATION_EMAIL_ENABLED
+              value: {{ .Values.notificationService.config.features.email | quote }}
+          resources:
+            {{- toYaml .Values.notificationService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.notificationService.service.port }}
+            initialDelaySeconds: 180
+            periodSeconds: 45
+            timeoutSeconds: 15
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.notificationService.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 8
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.notificationService.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 30
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+            - name: logs-volume
+              mountPath: /app/logs
+            - name: email-templates
+              mountPath: /app/templates/email
+              readOnly: true
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.notificationService.name }}-config
+        - name: logs-volume
+        emptyDir: {}
+        - name: email-templates
+          configMap:
+            name: notification-email-templates
+            optional: true
+        - name: tmp-volume
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-mongodb
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for MongoDB..."
+              until nc -z {{ .Values.notificationService.config.database.service }} {{ .Values.global.data.mongodb.port }}; do 
+                echo "MongoDB not ready, waiting..."
+                sleep 3
+              done
+              echo "MongoDB is ready!"
+        - name: wait-for-redis
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Redis..."
+              until nc -z {{ .Values.global.data.redis.host }} {{ .Values.global.data.redis.port }}; do 
+                echo "Redis not ready, waiting..."
+                sleep 3
+              done
+              echo "Redis is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092; do 
+                echo "Kafka not ready, waiting..."
+                sleep 3
+              done
+              echo "Kafka is ready!"
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Eureka..."
+              until nc -z eureka-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8761; do 
+                echo "Eureka not ready, waiting..."
+                sleep 3
+              done
+              echo "Eureka is ready!"
+  {{- end }}
+
+---
+  {{- if .Values.notificationService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.notificationService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.notificationservice.labels" . | nindent 4 }}
+    app: {{ .Values.notificationService.name }}
+spec:
+  selector:
+    app: {{ .Values.notificationService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.notificationService.service.port }}
+      targetPort: {{ .Values.notificationService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.notificationService.service.type "NodePort") .Values.notificationService.service.nodePort }}
+      nodePort: {{ .Values.notificationService.service.nodePort }}
+      {{- end }}
+    - name: sse
+      port: 8087
+      targetPort: 8087
+      protocol: TCP
+  type: {{ .Values.notificationService.service.type }}
+  {{- end }}
+
+---
+  {{- if .Values.notificationService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.notificationService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.notificationservice.labels" . | nindent 4 }}
+    app: {{ .Values.notificationService.name }}
+type: Opaque
+data:
+  mail-host: {{ .Values.notificationService.secrets.mailHost | b64enc }}
+  mail-port: {{ .Values.notificationService.secrets.mailPort | b64enc }}
+  mail-username: {{ .Values.notificationService.secrets.mailUsername | b64enc }}
+  mail-password: {{ .Values.notificationService.secrets.mailPassword | b64enc }}
+  email-from: {{ .Values.notificationService.secrets.emailFrom | b64enc }}
+  {{- end }}
+
+---
+  {{- if .Values.notificationService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.notificationService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.notificationservice.labels" . | nindent 4 }}
+    app: {{ .Values.notificationService.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.notificationService.service.port }}
+      error:
+        include-stacktrace: always
+        include-message: always
+        include-binding-errors: always
+    
+    spring:
+      profiles:
+        active: {{ .Values.notificationService.config.profiles.active }}
+      config:
+        import: optional:configserver:{{ .Values.global.infrastructure.configServer.url }}
+      application:
+        name: notification-service
+      
+      data:
+        mongodb:
+          uri: mongodb://{{ .Values.notificationService.config.database.service }}:{{ .Values.global.data.mongodb.port }}/{{ .Values.notificationService.config.database.name }}
+          database: {{ .Values.notificationService.config.database.name }}
+        
+        redis:
+          host: {{ .Values.global.data.redis.host }}
+          port: {{ .Values.global.data.redis.port }}
+          timeout: 2000ms
+          database: {{ .Values.notificationService.config.database.redisDatabase }}
+          lettuce:
+            pool:
+              max-active: 8
+              max-idle: 8
+              min-idle: 0
+              max-wait: -1ms
+      
+      kafka:
+        bootstrap-servers: {{ .Values.global.data.kafka.brokers }}
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          properties:
+            spring.json.add.type.headers: false
+        consumer:
+          group-id: notification-service-group
+          auto-offset-reset: earliest
+          key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          properties:
+            spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+            spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+            spring.json.trusted.packages: "*"
+            spring.json.use.type.headers: false
+            spring.json.value.default.type: java.lang.Object
+      
+      mail:
+        host: ${SPRING_MAIL_HOST}
+        port: ${SPRING_MAIL_PORT}
+        username: ${SPRING_MAIL_USERNAME}
+        password: ${SPRING_MAIL_PASSWORD}
+        properties:
+          mail:
+            smtp:
+              auth: true
+              starttls:
+                enable: true
+              connectiontimeout: 5000
+              timeout: 3000
+              writetimeout: 5000
+    
+    eureka:
+      instance:
+        preferIpAddress: true
+        instanceId: ${spring.application.name}:${server.port}
+        hostname: {{ .Values.notificationService.name }}
+        metadataMap:
+          instanceId: ${spring.application.name}:${server.port}
+      client:
+        registryFetchIntervalSeconds: 5
+        instanceInfoReplicationIntervalSeconds: 5
+        initialInstanceInfoReplicationIntervalSeconds: 5
+        eurekaServiceUrlPollIntervalSeconds: 5
+        registerWithEureka: true
+        fetchRegistry: true
+        serviceUrl:
+          defaultZone: {{ .Values.global.infrastructure.eureka.url }}
+    
+    management:
+      health:
+        mongo:
+          enabled: true
+        redis:
+          enabled: true
+        mail:
+          enabled: true
+      endpoint:
+        health:
+          show-details: "ALWAYS"
+          show-components: "ALWAYS"
+        metrics:
+          enabled: true
+      endpoints:
+        web:
+          exposure:
+            include: "*"
+          cors:
+            allowed-origins: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http.server.requests: true
+          percentiles:
+            http.server.requests: 0.5, 0.95, 0.99
+        tags:
+          application: ${spring.application.name}
+    
+    notification:
+      email:
+        from: ${NOTIFICATION_EMAIL_FROM}
+        enabled: ${NOTIFICATION_EMAIL_ENABLED:true}
+        template-path: classpath:/templates/email/
+        retry:
+          max-attempts: 3
+          delay: 1000
+      sms:
+        enabled: ${NOTIFICATION_SMS_ENABLED:false}
+        provider: twilio
+      push:
+        enabled: ${NOTIFICATION_PUSH_ENABLED:false}
+        provider: fcm
+      realtime:
+        sse:
+          enabled: true
+          timeout: 0
+        websocket:
+          enabled: ${NOTIFICATION_WEBSOCKET_ENABLED:false}
+      kafka:
+        topics:
+          payment-confirmed: payment-confirmed
+          order-created: order-created
+          order-shipped: order-shipped
+          user-registered: user-registered
+          notification-read: notification-read
+      cache:
+        notification-ttl: 86400
+        template-ttl: 3600
+    
+    logging:
+      level:
+        root: INFO
+        org.springframework.web: INFO
+        org.springframework.data.mongodb: INFO
+        org.springframework.kafka: WARN
+        org.springframework.mail: DEBUG
+        org.apache.kafka: ERROR
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  {{- end }}
+
+---
+  {{- if .Values.notificationService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-email-templates
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.notificationservice.labels" . | nindent 4 }}
+    app: {{ .Values.notificationService.name }}
+data:
+  welcome.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Welcome to NexusCommerce</title>
+    </head>
+    <body>
+    <h1>Welcome to NexusCommerce!</h1>
+    <p>Hello {{username}},</p>
+    <p>Thank you for joining NexusCommerce. We're excited to have you as part of our community.</p>
+    <p>Best regards,<br>The NexusCommerce Team</p>
+    </body>
+    </html>
+
+  order-confirmation.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Order Confirmation</title>
+    </head>
+    <body>
+    <h1>Order Confirmation</h1>
+    <p>Hello {{customerName}},</p>
+    <p>Your order #{{orderNumber}} has been confirmed.</p>
+    <p>Order Total: ${{orderTotal}}</p>
+    <p>Expected Delivery: {{deliveryDate}}</p>
+    <p>Thank you for shopping with NexusCommerce!</p>
+    </body>
+    </html>
+
+  payment-confirmation.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Payment Confirmation</title>
+    </head>
+    <body>
+    <h1>Payment Received</h1>
+    <p>Hello {{customerName}},</p>
+    <p>We have successfully received your payment of ${{amount}} for order #{{orderNumber}}.</p>
+    <p>Payment Method: {{paymentMethod}}</p>
+    <p>Transaction ID: {{transactionId}}</p>
+    <p>Thank you for your business!</p>
+    </body>
+    </html>
+  {{- end }}
