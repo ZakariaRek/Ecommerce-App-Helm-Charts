@@ -1,0 +1,86 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.grafana.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.grafana.labels" . | nindent 4 }}
+    app: {{ .Values.grafana.name }}
+data:
+  grafana.ini: |
+    [analytics]
+    check_for_updates = true
+
+    [grafana_net]
+    url = https://grafana.net
+
+    [log]
+    mode = console
+    level = info
+
+    [paths]
+    data = /var/lib/grafana/data
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+
+    [server]
+    domain = {{ .Values.grafana.config.domain }}
+    root_url = {{ .Values.grafana.config.rootUrl }}
+
+    [security]
+    admin_password = {{ .Values.grafana.config.adminPassword }}
+
+    [users]
+    allow_sign_up = {{ .Values.grafana.config.allowSignUp }}
+
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: {{ .Values.grafana.datasources.prometheus.url }}
+        isDefault: true
+        editable: true
+      - name: Elasticsearch
+        type: elasticsearch
+        access: proxy
+        url: {{ .Values.grafana.datasources.elasticsearch.url }}
+        database: "microservices-logs-*"
+        timeField: "@timestamp"
+        version: 8
+        editable: true
+
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'istio'
+        orgId: 1
+        folder: 'Istio Service Mesh'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+      - name: 'microservices'
+        orgId: 1
+        folder: 'Microservices'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+      - name: 'infrastructure'
+        orgId: 1
+        folder: 'Infrastructure'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+{{- end }}

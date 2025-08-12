@@ -1,0 +1,19 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.grafana.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.grafana.labels" . | nindent 4 }}
+    app: {{ .Values.grafana.name }}
+spec:
+  type: {{ .Values.grafana.service.type }}
+  ports:
+    - name: grafana
+      port: {{ .Values.grafana.service.port }}
+      targetPort: grafana
+      protocol: TCP
+  selector:
+    app: {{ .Values.grafana.name }}
+{{- end }}

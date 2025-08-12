@@ -1,0 +1,137 @@
+global:
+  namespace: observability
+  environment: development
+  storageClass: standard
+  nodeSelector:
+    node-role: observability
+
+# Prometheus Configuration for Development
+prometheus:
+  enabled: true
+  replicas: 1  # Single replica for dev
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  storage:
+    enabled: true
+    size: 5Gi
+    retention: "7d"  # Shorter retention for dev
+
+  config:
+    scrapeInterval: "30s"  # Longer interval for dev
+    evaluationInterval: "30s"
+    externalLabels:
+      cluster: 'nexus-commerce-dev'
+      environment: 'development'
+
+# Grafana Configuration for Development
+grafana:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  config:
+    adminPassword: "admin123"  # Dev password
+    allowSignUp: false
+    domain: "grafana.nexus-commerce.local"
+    rootUrl: "http://grafana.nexus-commerce.local"
+
+# Elasticsearch Configuration for Development
+elasticsearch:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  storage:
+    enabled: true
+    size: 10Gi
+
+  config:
+    clusterName: "nexus-commerce-logs-dev"
+    javaOpts: "-Xms512m -Xmx512m"  # Smaller heap for dev
+
+# Kibana Configuration for Development
+kibana:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Logstash Configuration for Development
+logstash:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  config:
+    javaOpts: "-Xmx512m -Xms512m"
+
+# Kiali Configuration for Development
+kiali:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# Ingress Configuration for Development
+ingress:
+  enabled: true
+  className: nginx
+
+  hosts:
+    prometheus: prometheus.nexus-commerce.local
+    grafana: grafana.nexus-commerce.local
+    kibana: kibana.nexus-commerce.local
+    kiali: kiali.nexus-commerce.local
+    elasticsearch: elasticsearch.nexus-commerce.local
+
+# Enable debug logging for development
+monitoring:
+  enabled: true
+  healthChecks:
+    enabled: true
+  metrics:
+    enabled: true
+
+# No backup for development
+backup:
+  enabled: false

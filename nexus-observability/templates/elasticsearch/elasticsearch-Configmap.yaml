@@ -1,0 +1,57 @@
+{{- if .Values.elasticsearch.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.elasticsearch.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.elasticsearch.labels" . | nindent 4 }}
+    app: {{ .Values.elasticsearch.name }}
+data:
+  elasticsearch.yml: |
+    cluster.name: {{ .Values.elasticsearch.config.clusterName | quote }}
+    node.name: {{ .Values.elasticsearch.config.nodeName | quote }}
+    network.host: 0.0.0.0
+    http.port: {{ .Values.elasticsearch.service.ports.http }}
+    transport.port: {{ .Values.elasticsearch.service.ports.transport }}
+
+    # Discovery
+    discovery.type: {{ .Values.elasticsearch.config.discoveryType }}
+
+    # Security Configuration - Properly disabled for development
+    xpack.security.enabled: {{ .Values.elasticsearch.config.xpackSecurityEnabled }}
+    xpack.security.enrollment.enabled: false
+    xpack.security.http.ssl.enabled: false
+    xpack.security.transport.ssl.enabled: false
+    xpack.security.authc.api_key.enabled: false
+
+    # Monitoring
+    xpack.monitoring.collection.enabled: true
+
+    # Index settings
+    action.auto_create_index: true
+    action.destructive_requires_name: true
+
+    # Memory settings
+    indices.fielddata.cache.size: 20%
+    indices.query.bool.max_clause_count: 10000
+
+    # Path settings
+    path.data: /usr/share/elasticsearch/data
+    path.logs: /usr/share/elasticsearch/logs
+
+    # Bootstrap settings
+    bootstrap.memory_lock: false
+
+    # HTTP settings
+    http.cors.enabled: true
+    http.cors.allow-origin: "*"
+    http.cors.allow-headers: "X-Requested-With,Content-Type,Content-Length,Authorization"
+
+    # Logging
+    logger.level: INFO
+    logger.deprecation.level: WARN
+
+    # Additional stability settings
+    cluster.routing.allocation.disk.threshold_enabled: false
+{{- end }}

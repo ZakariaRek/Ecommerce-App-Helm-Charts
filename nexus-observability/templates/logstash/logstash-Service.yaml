@@ -1,0 +1,27 @@
+{{- if .Values.logstash.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.logstash.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.logstash.labels" . | nindent 4 }}
+    app: {{ .Values.logstash.name }}
+spec:
+  selector:
+    app: {{ .Values.logstash.name }}
+  ports:
+    - name: beats
+      port: {{ .Values.logstash.service.ports.beats }}
+      targetPort: {{ .Values.logstash.service.ports.beats }}
+      protocol: TCP
+    - name: tcp
+      port: {{ .Values.logstash.service.ports.tcp }}
+      targetPort: {{ .Values.logstash.service.ports.tcp }}
+      protocol: TCP
+    - name: monitoring
+      port: {{ .Values.logstash.service.ports.monitoring }}
+      targetPort: {{ .Values.logstash.service.ports.monitoring }}
+      protocol: TCP
+  type: {{ .Values.logstash.service.type }}
+{{- end }}

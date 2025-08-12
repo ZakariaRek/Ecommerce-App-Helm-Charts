@@ -1,0 +1,73 @@
+{{- if .Values.kiali.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.kiali.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.kiali.labels" . | nindent 4 }}
+    app: {{ .Values.kiali.name }}
+data:
+  config.yaml: |
+    istio_namespace: {{ .Values.kiali.config.istioNamespace }}
+    auth:
+      strategy: {{ .Values.kiali.config.authStrategy }}
+    deployment:
+      accessible_namespaces:
+        - "**"
+      namespace: {{ .Values.global.namespace }}
+    server:
+      port: {{ .Values.kiali.service.ports.http }}
+      web_root: /kiali
+    external_services:
+      istio:
+        root_namespace: {{ .Values.kiali.config.istioNamespace }}
+        config_map_name: istio
+        istio_sidecar_annotation: sidecar.istio.io/status
+        url_service_version: http://istiod.{{ .Values.kiali.config.istioNamespace }}:15014/version
+      prometheus:
+        url: {{ .Values.kiali.config.prometheusUrl }}
+        custom_metrics_url: {{ .Values.kiali.config.prometheusUrl }}
+        health_check_url: {{ .Values.kiali.config.prometheusUrl }}/-/healthy
+      grafana:
+        enabled: true
+        in_cluster_url: {{ .Values.kiali.config.grafanaUrl }}
+        url: {{ .Values.kiali.config.grafanaUrl }}
+        dashboards:
+          - name: "Istio Service Dashboard"
+            variables:
+              namespace: "var-namespace"
+              service: "var-service"
+          - name: "Istio Workload Dashboard"
+            variables:
+              namespace: "var-namespace"
+              workload: "var-workload"
+      {{- if .Values.kiali.config.zipkinUrl }}
+      tracing:
+        enabled: true
+        in_cluster_url: {{ .Values.kiali.config.zipkinUrl }}
+        url: {{ .Values.kiali.config.zipkinUrl }}
+        use_grpc: false
+        whitelist_istio_system: ["jaeger-query", "istio-ingressgateway"]
+      {{- end }}
+    api:
+      namespaces:
+        exclude:
+          - istio-operator
+          - kube.*
+          - openshift.*
+          - ibm.*
+          - kiali-operator
+        label_selector_exclude: "kiali.io/member-of=observability"
+    istio_labels:
+      app_label_name: "app"
+      version_label_name: "version"
+    custom_dashboards:
+      - name: envoy
+        title: Envoy Metrics
+        variables:
+          namespace: "var-namespace"
+          app: "var-app"
+    login_token:
+      signing_key: kiali-signing-key
+{{- end }}
