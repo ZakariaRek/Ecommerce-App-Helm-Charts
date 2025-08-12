@@ -1,0 +1,259 @@
+global:
+  namespace: observability
+  environment: production
+  storageClass: standard
+  nodeSelector:
+    node-role: observability
+
+  # Global resource defaults
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# Prometheus Configuration
+prometheus:
+  enabled: true
+  name: prometheus
+  image:
+    repository: prom/prometheus
+    tag: "v2.45.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    port: 9090
+
+  storage:
+    enabled: true
+    size: 10Gi
+    retention: "15d"
+
+  config:
+    scrapeInterval: "15s"
+    evaluationInterval: "15s"
+    externalLabels:
+      cluster: 'nexus-commerce'
+      environment: 'production'
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  name: grafana
+  image:
+    repository: grafana/grafana
+    tag: "10.0.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  config:
+    adminPassword: "admin"
+    allowSignUp: false
+    domain: "grafana.nexus-commerce.local"
+    rootUrl: "http://grafana.nexus-commerce.local"
+
+  datasources:
+    prometheus:
+      url: "http://prometheus.observability.svc.cluster.local:9090"
+    elasticsearch:
+      url: "http://elasticsearch.observability.svc.cluster.local:9200"
+
+# Elasticsearch Configuration
+elasticsearch:
+  enabled: true
+  name: elasticsearch
+  image:
+    repository: docker.elastic.co/elasticsearch/elasticsearch
+    tag: "8.11.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  service:
+    type: ClusterIP
+    ports:
+      http: 9200
+      transport: 9300
+
+  storage:
+    enabled: true
+    size: 50Gi
+
+  config:
+    clusterName: "nexus-commerce-logs"
+    nodeName: "elasticsearch-node-1"
+    javaOpts: "-Xms2g -Xmx2g"
+    discoveryType: "single-node"
+    xpackSecurityEnabled: false
+
+# Kibana Configuration
+kibana:
+  enabled: true
+  name: kibana
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    tag: "8.11.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    port: 5601
+
+  config:
+    elasticsearchHosts: "http://elasticsearch.observability.svc.cluster.local:9200"
+    serverName: "kibana"
+    serverHost: "0.0.0.0"
+    xpackSecurityEnabled: false
+    encryptionKey: "a_very_long_random_key_that_is_at_least_32_characters_long_for_prod_use"
+
+# Logstash Configuration
+logstash:
+  enabled: true
+  name: logstash
+  image:
+    repository: docker.elastic.co/logstash/logstash
+    tag: "8.11.0"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    ports:
+      beats: 5044
+      tcp: 5000
+      monitoring: 9600
+
+  config:
+    javaOpts: "-Xmx1g -Xms1g"
+    kafkaBootstrapServers: "kafka-service.data.svc.cluster.local:9092"
+    elasticsearchHosts: "elasticsearch.observability.svc.cluster.local:9200"
+
+# Kiali Configuration
+kiali:
+  enabled: true
+  name: kiali
+  image:
+    repository: quay.io/kiali/kiali
+    tag: "v1.76"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    ports:
+      http: 20001
+      metrics: 9090
+
+  config:
+    authStrategy: "anonymous"
+    istioNamespace: "istio-system"
+    prometheusUrl: "http://prometheus.observability.svc.cluster.local:9090"
+    grafanaUrl: "http://grafana.observability.svc.cluster.local:3000"
+    zipkinUrl: "http://zipkin-server.infrastructure.svc.cluster.local:9411"
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+  hosts:
+    prometheus: prometheus.nexus-commerce.local
+    grafana: grafana.nexus-commerce.local
+    kibana: kibana.nexus-commerce.local
+    kiali: kiali.nexus-commerce.local
+    elasticsearch: elasticsearch.nexus-commerce.local
+
+# Storage Configuration
+storage:
+  enabled: true
+  className: standard
+  reclaimPolicy: Retain
+
+# Security
+security:
+  enabled: true
+  networkPolicies:
+    enabled: false  # Enable for production
+  rbac:
+    enabled: true
+
+# Monitoring
+monitoring:
+  enabled: true
+  healthChecks:
+    enabled: true
+  metrics:
+    enabled: true
+
+# Backup
+backup:
+  enabled: false
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 7  # Keep for 7 days

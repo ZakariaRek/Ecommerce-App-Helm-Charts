@@ -1,0 +1,125 @@
+{{- if .Values.kibana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.kibana.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.kibana.labels" . | nindent 4 }}
+    app: {{ .Values.kibana.name }}
+spec:
+  replicas: {{ .Values.kibana.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.kibana.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-observability.kibana.labels" . | nindent 8 }}
+        app: {{ .Values.kibana.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kibana
+          image: "{{ .Values.kibana.image.repository }}:{{ .Values.kibana.image.tag }}"
+          imagePullPolicy: {{ .Values.kibana.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.kibana.service.port }}
+          env:
+            - name: ELASTICSEARCH_HOSTS
+              value: {{ .Values.kibana.config.elasticsearchHosts | quote }}
+            - name: SERVER_NAME
+              value: {{ .Values.kibana.config.serverName | quote }}
+            - name: SERVER_HOST
+              value: {{ .Values.kibana.config.serverHost | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.kibana.service.port | quote }}
+            - name: XPACK_SECURITY_ENABLED
+              value: {{ .Values.kibana.config.xpackSecurityEnabled | quote }}
+            - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+              value: {{ .Values.kibana.config.encryptionKey | quote }}
+            - name: MONITORING_UI_CONTAINER_ELASTICSEARCH_ENABLED
+              value: "true"
+            - name: LOGGING_ROOT_LEVEL
+              value: "info"
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=1024"
+          resources:
+            {{- toYaml .Values.kibana.resources | nindent 12 }}
+          volumeMounts:
+            - name: kibana-config
+              mountPath: /usr/share/kibana/config/kibana.yml
+              subPath: kibana.yml
+            - name: kibana-data
+              mountPath: /usr/share/kibana/data
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: {{ .Values.kibana.service.port }}
+              httpHeaders:
+                - name: kbn-xsrf
+                  value: "true"
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: {{ .Values.kibana.service.port }}
+              httpHeaders:
+                - name: kbn-xsrf
+                  value: "true"
+            initialDelaySeconds: 180
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+          startupProbe:
+            httpGet:
+              path: /api/status
+              port: {{ .Values.kibana.service.port }}
+              httpHeaders:
+                - name: kbn-xsrf
+                  value: "true"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 20
+      volumes:
+        - name: kibana-config
+          configMap:
+            name: {{ .Values.kibana.name }}-config
+        - name: kibana-data
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-elasticsearch
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Elasticsearch to be ready..."
+              until wget -q --spider --timeout=10 {{ .Values.kibana.config.elasticsearchHosts }}; do
+                echo "Elasticsearch not responding, waiting 10 seconds..."
+                sleep 10
+              done
+              echo "Elasticsearch is responding, checking cluster health..."
+
+              until wget -q --spider --timeout=30 "{{ .Values.kibana.config.elasticsearchHosts }}/_cluster/health?wait_for_status=yellow&timeout=60s"; do
+                echo "Elasticsearch cluster not healthy, waiting 15 seconds..."
+                sleep 15
+              done
+              echo "Elasticsearch cluster is healthy!"
+
+              echo "Waiting additional 30 seconds for Elasticsearch to fully initialize..."
+              sleep 30
+              echo "Elasticsearch is ready for Kibana!"
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 60
+{{- end }}

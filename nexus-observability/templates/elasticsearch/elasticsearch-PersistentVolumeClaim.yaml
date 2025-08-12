@@ -1,0 +1,17 @@
+{{- if and .Values.elasticsearch.enabled .Values.elasticsearch.storage.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.elasticsearch.name }}-pvc
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.elasticsearch.labels" . | nindent 4 }}
+    app: {{ .Values.elasticsearch.name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.elasticsearch.storage.size }}
+  storageClassName: {{ .Values.global.storageClass }}
+{{- end }}

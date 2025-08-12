@@ -1,0 +1,50 @@
+{{- if .Values.kibana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.kibana.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.kibana.labels" . | nindent 4 }}
+    app: {{ .Values.kibana.name }}
+data:
+  kibana.yml: |
+    # Server configuration
+    server.name: {{ .Values.kibana.config.serverName | quote }}
+    server.host: {{ .Values.kibana.config.serverHost | quote }}
+    server.port: {{ .Values.kibana.service.port }}
+    server.publicBaseUrl: "http://{{ .Values.kibana.name }}.{{ .Values.global.namespace }}.svc.cluster.local:{{ .Values.kibana.service.port }}"
+
+    # Elasticsearch configuration
+    elasticsearch.hosts: [{{ .Values.kibana.config.elasticsearchHosts | quote }}]
+    elasticsearch.requestTimeout: 90000
+    elasticsearch.pingTimeout: 20000
+
+    # Security configuration - Properly disabled for 8.x
+    xpack.security.enabled: {{ .Values.kibana.config.xpackSecurityEnabled }}
+    xpack.encryptedSavedObjects.encryptionKey: {{ .Values.kibana.config.encryptionKey | quote }}
+
+    # Monitoring configuration - Updated for 8.x compatibility
+    monitoring.ui.container.elasticsearch.enabled: true
+    monitoring.kibana.collection.enabled: false
+
+    # Logging configuration
+    logging:
+      root:
+        level: info
+      appenders:
+        default:
+          type: console
+          layout:
+            type: json
+
+    # UI configuration
+    i18n.locale: "en"
+
+    # Save objects configuration
+    savedObjects.maxImportPayloadBytes: 26214400
+    savedObjects.maxImportExportSize: 10000
+
+    # Path configuration
+    path.data: /usr/share/kibana/data
+{{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.prometheus.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.prometheus.labels" . | nindent 4 }}
+    app: {{ .Values.prometheus.name }}
+spec:
+  type: {{ .Values.prometheus.service.type }}
+  ports:
+    - name: web
+      port: {{ .Values.prometheus.service.port }}
+      targetPort: web
+      protocol: TCP
+  selector:
+    app: {{ .Values.prometheus.name }}
+{{- end }}

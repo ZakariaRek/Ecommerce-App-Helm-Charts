@@ -1,0 +1,105 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.grafana.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.grafana.labels" . | nindent 4 }}
+    app: {{ .Values.grafana.name }}
+spec:
+  replicas: {{ .Values.grafana.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.grafana.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-observability.grafana.labels" . | nindent 8 }}
+        app: {{ .Values.grafana.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: grafana
+          image: "{{ .Values.grafana.image.repository }}:{{ .Values.grafana.image.tag }}"
+          imagePullPolicy: {{ .Values.grafana.image.pullPolicy }}
+          ports:
+            - name: grafana
+              containerPort: {{ .Values.grafana.service.port }}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.grafana.config.adminPassword | quote }}
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: {{ .Values.grafana.config.allowSignUp | quote }}
+            - name: GF_SERVER_DOMAIN
+              value: {{ .Values.grafana.config.domain | quote }}
+            - name: GF_SERVER_ROOT_URL
+              value: {{ .Values.grafana.config.rootUrl | quote }}
+            - name: GF_LOG_LEVEL
+              value: "info"
+            - name: GF_SECURITY_ALLOW_EMBEDDING
+              value: "true"
+          volumeMounts:
+            - name: grafana-config
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+            - name: grafana-dashboards-config
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+          resources:
+            {{- toYaml .Values.grafana.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.grafana.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.grafana.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.grafana.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: grafana-config
+          configMap:
+            name: {{ .Values.grafana.name }}-config
+        - name: grafana-datasources
+          configMap:
+            name: {{ .Values.grafana.name }}-config
+        - name: grafana-dashboards-config
+          configMap:
+            name: {{ .Values.grafana.name }}-config
+        - name: grafana-storage
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-prometheus
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Prometheus..."
+              until nc -z {{ .Values.prometheus.name }}.{{ .Values.global.namespace }}.svc.cluster.local {{ .Values.prometheus.service.port }}; do
+                echo "Prometheus not ready, waiting..."
+                sleep 5
+              done
+              echo "Prometheus is ready!"
+{{- end }}

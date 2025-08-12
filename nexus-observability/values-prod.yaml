@@ -1,0 +1,139 @@
+global:
+  namespace: observability
+  environment: production
+  storageClass: gp3 # Using a more performant storage class for production
+  nodeSelector:
+    node-role: observability
+
+# Prometheus Configuration for Production
+prometheus:
+  enabled: true
+  replicas: 3 # Increased replicas for high availability
+
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+
+  storage:
+    enabled: true
+    size: 200Gi # Increased storage for longer retention
+    retention: "30d" # Increased retention period
+
+  config:
+    scrapeInterval: "15s" # More frequent scraping for production
+    evaluationInterval: "15s"
+    externalLabels:
+      cluster: 'nexus-commerce-production'
+      environment: 'production'
+
+# Grafana Configuration for Production
+grafana:
+  enabled: true
+  replicas: 2 # Increased replicas for high availability
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  config:
+    adminPassword: "<managed-by-secret>" # IMPORTANT: Use a secret management tool
+    allowSignUp: false
+    domain: "grafana.production.nexus-commerce.com"
+    rootUrl: "https://grafana.production.nexus-commerce.com"
+
+# Elasticsearch Configuration for Production
+elasticsearch:
+  enabled: true
+  replicas: 3 # Minimum for a production cluster
+
+  resources:
+    requests:
+      memory: "8Gi"
+      cpu: "2000m"
+    limits:
+      memory: "16Gi"
+      cpu: "4000m"
+
+  storage:
+    enabled: true
+    size: 500Gi # Significantly larger storage for production logs
+
+  config:
+    clusterName: "nexus-commerce-logs-production"
+    javaOpts: "-Xms4g -Xmx4g" # Increased Java heap size
+
+# Kibana Configuration for Production
+kibana:
+  enabled: true
+  replicas: 2 # Increased replicas for high availability
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Logstash Configuration for Production
+logstash:
+  enabled: true
+  replicas: 2 # Increased replicas for high availability and throughput
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  config:
+    javaOpts: "-Xmx2g -Xms2g" # Increased Java heap size
+
+# Kiali Configuration for Production
+kiali:
+  enabled: true
+  replicas: 2 # Increased replicas for high availability
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Ingress Configuration for Production
+ingress:
+  enabled: true
+  className: nginx
+
+  hosts:
+    prometheus: prometheus.production.nexus-commerce.com
+    grafana: grafana.production.nexus-commerce.com
+    kibana: kibana.production.nexus-commerce.com
+    kiali: kiali.production.nexus-commerce.com
+    elasticsearch: elasticsearch.production.nexus-commerce.com
+
+# Monitoring for Production
+monitoring:
+  enabled: true
+  healthChecks:
+    enabled: true
+  metrics:
+    enabled: true
+
+# Backup for Production
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30  # Keep for 30 days
