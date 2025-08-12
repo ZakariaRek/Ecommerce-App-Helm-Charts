@@ -1,0 +1,25 @@
+apiVersion: v2
+name: nexus-observability
+description: A Helm chart for NexusCommerce Observability Stack
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+keywords:
+  - observability
+  - monitoring
+  - logging
+  - metrics
+  - prometheus
+  - grafana
+  - elasticsearch
+  - kibana
+  - logstash
+  - kiali
+  - service-mesh
+
+maintainers:
+  - name: NexusCommerce Team
+    email: team@nexuscommerce.com
+
+dependencies: []

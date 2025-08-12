@@ -1,0 +1,19 @@
+{{- if .Values.kibana.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.kibana.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.kibana.labels" . | nindent 4 }}
+    app: {{ .Values.kibana.name }}
+spec:
+  selector:
+    app: {{ .Values.kibana.name }}
+  ports:
+    - name: http
+      port: {{ .Values.kibana.service.port }}
+      targetPort: {{ .Values.kibana.service.port }}
+      protocol: TCP
+  type: {{ .Values.kibana.service.type }}
+{{- end }}

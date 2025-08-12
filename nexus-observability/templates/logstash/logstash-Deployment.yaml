@@ -1,0 +1,127 @@
+{{- if .Values.logstash.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.logstash.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-observability.logstash.labels" . | nindent 4 }}
+    app: {{ .Values.logstash.name }}
+spec:
+  replicas: {{ .Values.logstash.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.logstash.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-observability.logstash.labels" . | nindent 8 }}
+        app: {{ .Values.logstash.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: logstash
+          image: "{{ .Values.logstash.image.repository }}:{{ .Values.logstash.image.tag }}"
+          imagePullPolicy: {{ .Values.logstash.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          ports:
+            - name: beats
+              containerPort: {{ .Values.logstash.service.ports.beats }}
+            - name: tcp
+              containerPort: {{ .Values.logstash.service.ports.tcp }}
+            - name: monitoring
+              containerPort: {{ .Values.logstash.service.ports.monitoring }}
+          env:
+            - name: LS_JAVA_OPTS
+              value: {{ .Values.logstash.config.javaOpts | quote }}
+            - name: XPACK_MONITORING_ENABLED
+              value: "false"
+            - name: XPACK_MONITORING_ELASTICSEARCH_HOSTS
+              value: {{ .Values.logstash.config.elasticsearchHosts | quote }}
+          resources:
+            {{- toYaml .Values.logstash.resources | nindent 12 }}
+          volumeMounts:
+            - name: logstash-config-volume
+              mountPath: /usr/share/logstash/config
+            - name: logstash-pipeline
+              mountPath: /usr/share/logstash/pipeline/logstash.conf
+              subPath: logstash.conf
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.logstash.service.ports.monitoring }}
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.logstash.service.ports.monitoring }}
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.logstash.service.ports.monitoring }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 20
+      volumes:
+        - name: logstash-config-volume
+          emptyDir: {}
+        - name: logstash-config-source
+          configMap:
+            name: {{ .Values.logstash.name }}-config
+        - name: logstash-pipeline
+          configMap:
+            name: {{ .Values.logstash.name }}-pipeline
+      initContainers:
+        - name: setup-config
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Copying Logstash configuration..."
+              cp /tmp/config-source/* /usr/share/logstash/config/
+              chown -R 1000:1000 /usr/share/logstash/config/
+              chmod -R 644 /usr/share/logstash/config/*
+              ls -la /usr/share/logstash/config/
+              echo "Configuration setup complete!"
+          volumeMounts:
+            - name: logstash-config-source
+              mountPath: /tmp/config-source
+            - name: logstash-config-volume
+              mountPath: /usr/share/logstash/config
+        - name: wait-for-elasticsearch
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Elasticsearch..."
+              until nc -z {{ .Values.elasticsearch.name }}.{{ .Values.global.namespace }}.svc.cluster.local {{ .Values.elasticsearch.service.ports.http }}; do
+                echo "Elasticsearch not ready, waiting..."
+                sleep 10
+              done
+              echo "Elasticsearch is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              until nc -z kafka-service.data.svc.cluster.local 9092; do
+                echo "Kafka not ready, waiting..."
+                sleep 10
+              done
+              echo "Kafka is ready!"
+{{- end }}

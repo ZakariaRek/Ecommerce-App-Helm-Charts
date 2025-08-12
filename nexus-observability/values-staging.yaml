@@ -1,0 +1,139 @@
+global:
+  namespace: observability
+  environment: staging
+  storageClass: standard
+  nodeSelector:
+    node-role: observability
+
+# Prometheus Configuration for Staging
+prometheus:
+  enabled: true
+  replicas: 2  # High availability for staging
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  storage:
+    enabled: true
+    size: 20Gi
+    retention: "10d"
+
+  config:
+    scrapeInterval: "20s"
+    evaluationInterval: "20s"
+    externalLabels:
+      cluster: 'nexus-commerce-staging'
+      environment: 'staging'
+
+# Grafana Configuration for Staging
+grafana:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "200m"
+    limits:
+      memory: "768Mi"
+      cpu: "400m"
+
+  config:
+    adminPassword: "staging-admin"
+    allowSignUp: false
+    domain: "grafana.staging.nexus-commerce.com"
+    rootUrl: "https://grafana.staging.nexus-commerce.com"
+
+# Elasticsearch Configuration for Staging
+elasticsearch:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  storage:
+    enabled: true
+    size: 30Gi
+
+  config:
+    clusterName: "nexus-commerce-logs-staging"
+    javaOpts: "-Xms1g -Xmx1g"
+
+# Kibana Configuration for Staging
+kibana:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "768Mi"
+      cpu: "400m"
+    limits:
+      memory: "1.5Gi"
+      cpu: "800m"
+
+# Logstash Configuration for Staging
+logstash:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "400m"
+    limits:
+      memory: "2Gi"
+      cpu: "800m"
+
+  config:
+    javaOpts: "-Xmx1g -Xms1g"
+
+# Kiali Configuration for Staging
+kiali:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "192Mi"
+      cpu: "75m"
+    limits:
+      memory: "768Mi"
+      cpu: "400m"
+
+# Ingress Configuration for Staging
+ingress:
+  enabled: true
+  className: nginx
+
+  hosts:
+    prometheus: prometheus.staging.nexus-commerce.com
+    grafana: grafana.staging.nexus-commerce.com
+    kibana: kibana.staging.nexus-commerce.com
+    kiali: kiali.staging.nexus-commerce.com
+    elasticsearch: elasticsearch.staging.nexus-commerce.com
+
+# Monitoring for Staging
+monitoring:
+  enabled: true
+  healthChecks:
+    enabled: true
+  metrics:
+    enabled: true
+
+# Backup for Staging
+backup:
+  enabled: true
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  retention: 14  # Keep for 14 days
