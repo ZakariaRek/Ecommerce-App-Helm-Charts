@@ -1,0 +1,185 @@
+{{- if .Values.userService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.userService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.userservice.labels" . | nindent 4 }}
+    app: {{ .Values.userService.name }}
+spec:
+  selector:
+    app: {{ .Values.userService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.userService.service.port }}
+      targetPort: {{ .Values.userService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.userService.service.type "NodePort") .Values.userService.service.nodePort }}
+      nodePort: {{ .Values.userService.service.nodePort }}
+      {{- end }}
+  type: {{ .Values.userService.service.type }}
+{{- end }}
+
+---
+{{- if .Values.userService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.userService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.userservice.labels" . | nindent 4 }}
+    app: {{ .Values.userService.name }}
+type: Opaque
+data:
+  mongodb-username: {{ .Values.userService.secrets.mongodbUsername | b64enc }}
+  mongodb-password: {{ .Values.userService.secrets.mongodbPassword | b64enc }}
+  jwt-secret: {{ .Values.userService.secrets.jwtSecret | b64enc }}
+{{- end }}
+
+---
+{{- if .Values.userService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.userService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.userservice.labels" . | nindent 4 }}
+    app: {{ .Values.userService.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.userService.service.port }}
+      servlet:
+        context-path: {{ .Values.userService.config.contextPath }}
+      error:
+        include-stacktrace: always
+        include-message: always
+        include-binding-errors: always
+      connection-timeout: 60000
+      tomcat:
+        threads:
+          max: 50
+          min-spare: 5
+        max-connections: 200
+        accept-count: 50
+    
+    spring:
+      profiles:
+        active: {{ .Values.userService.config.profiles.active }}
+      config:
+        import: optional:configserver:{{ .Values.global.infrastructure.configServer.url }}
+      application:
+        name: user-service
+      
+      data:
+        mongodb:
+          host: user-mongodb-headless.{{ .Values.global.data.namespace }}.svc.cluster.local
+          port: {{ .Values.global.data.mongodb.port }}
+          database: {{ .Values.userService.config.database.name }}
+          username: ${SPRING_DATA_MONGODB_USERNAME}
+          password: ${SPRING_DATA_MONGODB_PASSWORD}
+          uri: ${SPRING_DATA_MONGODB_URI}
+      
+      kafka:
+        bootstrap-servers: {{ .Values.global.data.kafka.brokers }}
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          properties:
+            spring.json.add.type.headers: false
+            acks: 1
+            enable.idempotence: false
+            compression.type: snappy
+        consumer:
+          group-id: user-service-group
+          auto-offset-reset: earliest
+          enable-auto-commit: true
+          auto-commit-interval: 5000
+          max-poll-records: 10
+          key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          properties:
+            spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+            spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+            spring.json.trusted.packages: "*"
+            spring.json.use.type.headers: false
+            spring.json.value.default.type: java.lang.Object
+        listener:
+          concurrency: 1
+          poll-timeout: 3000
+          type: single
+          ack-mode: batch
+    
+    eureka:
+      instance:
+        preferIpAddress: true
+        instanceId: ${spring.application.name}:${server.port}
+        hostname: {{ .Values.userService.name }}
+        lease-renewal-interval-in-seconds: 30
+        lease-expiration-duration-in-seconds: 90
+        metadataMap:
+          instanceId: ${spring.application.name}:${server.port}
+      client:
+        registryFetchIntervalSeconds: 30
+        instanceInfoReplicationIntervalSeconds: 30
+        initialInstanceInfoReplicationIntervalSeconds: 40
+        eurekaServiceUrlPollIntervalSeconds: 300
+        registerWithEureka: true
+        fetchRegistry: true
+        serviceUrl:
+          defaultZone: {{ .Values.global.infrastructure.eureka.url }}
+    
+    management:
+      health:
+        mongo:
+          enabled: true
+        eureka:
+          enabled: true
+        kafka:
+          enabled: true
+      endpoint:
+        health:
+          show-details: "WHEN_AUTHORIZED"
+          show-components: "WHEN_AUTHORIZED"
+        metrics:
+          enabled: true
+      endpoints:
+        web:
+          exposure:
+            include: "health,info,metrics,prometheus"
+          cors:
+            allowed-origins: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http.server.requests: true
+          percentiles:
+            http.server.requests: 0.5, 0.95, 0.99
+        tags:
+          application: ${spring.application.name}
+    
+    User-service:
+      app:
+        jwtCookieName: user-service
+        jwtSecret: ${USER_SERVICE_APP_JWT_SECRET}
+        jwtExpirationMs: {{ .Values.userService.config.jwt.expirationMs }}
+    
+    logging:
+      level:
+        root: INFO
+        com.Ecommerce.User_Service: INFO
+        org.springframework.kafka: WARN
+        org.apache.kafka: ERROR
+        org.springframework.cloud.netflix.eureka: WARN
+        org.springframework.security: WARN
+        org.springframework.web: WARN
+        org.springframework.boot.actuate: WARN
+        com.netflix.discovery: WARN
+        com.netflix.eureka: WARN
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [${spring.application.name}] %logger{40} - %msg%n"
+{{- end }}

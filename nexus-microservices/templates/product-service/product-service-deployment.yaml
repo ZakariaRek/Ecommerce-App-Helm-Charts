@@ -1,0 +1,446 @@
+{{- if .Values.productService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.productService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.productservice.labels" . | nindent 4 }}
+    app: {{ .Values.productService.name }}
+spec:
+  replicas: {{ .Values.productService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.productService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.productservice.labels" . | nindent 8 }}
+        app: {{ .Values.productService.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: product-service
+          image: "{{ .Values.productService.image.repository }}:{{ .Values.productService.image.tag }}"
+          imagePullPolicy: {{ .Values.productService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.productService.service.port }}
+              name: http
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1536m -Xms512m -XX:MaxMetaspaceSize=256m"
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.productService.config.profiles.active | quote }}
+            - name: SPRING_APPLICATION_NAME
+              value: "product-service"
+            - name: SERVER_PORT
+              value: {{ .Values.productService.service.port | quote }}
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: {{ .Values.productService.config.contextPath | quote }}
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: {{ .Values.productService.name | quote }}
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: {{ .Values.global.infrastructure.configServer.url | quote }}
+            # PostgreSQL Configuration
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://{{ .Values.productService.config.database.service }}:{{ .Values.global.data.postgresql.port }}/{{ .Values.productService.config.database.name }}"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.productService.name }}-secrets
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.productService.name }}-secrets
+                  key: db-password
+            # Kafka Configuration
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "product-service-group"
+          resources:
+            {{- toYaml .Values.productService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.productService.config.contextPath }}/actuator/health
+              port: {{ .Values.productService.service.port }}
+            initialDelaySeconds: 300
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.productService.config.contextPath }}/actuator/health/readiness
+              port: {{ .Values.productService.service.port }}
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 10
+          startupProbe:
+            httpGet:
+              path: {{ .Values.productService.config.contextPath }}/actuator/health
+              port: {{ .Values.productService.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 40
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+            - name: logs-volume
+              mountPath: /app/logs
+            - name: uploads-volume
+              mountPath: /app/uploads
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.productService.name }}-config
+        - name: logs-volume
+          emptyDir: {}
+        - name: uploads-volume
+          emptyDir: {}
+        - name: tmp-volume
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for PostgreSQL ({{ .Values.productService.config.database.service }})..."
+              timeout=300
+              count=0
+              until nc -z {{ .Values.productService.config.database.service }} {{ .Values.global.data.postgresql.port }} || [ $count -eq $timeout ]; do 
+                echo "PostgreSQL not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "PostgreSQL wait timeout reached!"
+                exit 1
+              fi
+              echo "PostgreSQL is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              timeout=300
+              count=0
+              until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092 || [ $count -eq $timeout ]; do 
+                echo "Kafka not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Kafka wait timeout reached!"
+                exit 1
+              fi
+              echo "Kafka is ready!"
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Eureka..."
+              timeout=300
+              count=0
+              until nc -z eureka-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8761 || [ $count -eq $timeout ]; do 
+                echo "Eureka not ready, waiting... ($count/$timeout)"
+                sleep 5
+                count=$((count+5))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Eureka wait timeout reached!"
+                exit 1
+              fi
+              echo "Eureka is ready!"
+        - name: wait-for-config-server
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Config Server..."
+              timeout=300
+              count=0
+              until nc -z config-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8888 || [ $count -eq $timeout ]; do 
+                echo "Config Server not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Config Server wait timeout reached!"
+                exit 1
+              fi
+              echo "Config Server is ready!"
+{{- end }}
+
+---
+{{- if .Values.productService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.productService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.productservice.labels" . | nindent 4 }}
+    app: {{ .Values.productService.name }}
+spec:
+  selector:
+    app: {{ .Values.productService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.productService.service.port }}
+      targetPort: {{ .Values.productService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.productService.service.type "NodePort") .Values.productService.service.nodePort }}
+      nodePort: {{ .Values.productService.service.nodePort }}
+      {{- end }}
+  type: {{ .Values.productService.service.type }}
+{{- end }}
+
+---
+{{- if .Values.productService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.productService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.productservice.labels" . | nindent 4 }}
+    app: {{ .Values.productService.name }}
+type: Opaque
+data:
+  db-username: {{ .Values.productService.secrets.dbUsername | b64enc }}
+  db-password: {{ .Values.productService.secrets.dbPassword | b64enc }}
+{{- end }}
+
+---
+{{- if .Values.productService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.productService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.productservice.labels" . | nindent 4 }}
+    app: {{ .Values.productService.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.productService.service.port }}
+      servlet:
+        context-path: {{ .Values.productService.config.contextPath }}
+      error:
+        include-stacktrace: always
+        include-message: always
+        include-binding-errors: always
+      connection-timeout: 60000
+      tomcat:
+        max-swallow-size: 10MB
+        max-http-form-post-size: 10MB
+        threads:
+          max: 50
+          min-spare: 5
+        max-connections: 200
+        accept-count: 50
+      max-http-request-header-size: 20KB
+    
+    spring:
+      profiles:
+        active: {{ .Values.productService.config.profiles.active }}
+      config:
+        import: optional:configserver:{{ .Values.global.infrastructure.configServer.url }}
+      application:
+        name: product-service
+      
+      jackson:
+        serialization:
+          write-dates-as-timestamps: false
+      
+      servlet:
+        multipart:
+          max-file-size: 10MB
+          max-request-size: 10MB
+          file-size-threshold: 2KB
+          enabled: true
+        codec:
+          max-in-memory-size: 10MB
+      
+      datasource:
+        url: jdbc:postgresql://{{ .Values.productService.config.database.service }}:{{ .Values.global.data.postgresql.port }}/{{ .Values.productService.config.database.name }}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        driver-class-name: org.postgresql.Driver
+      
+      jpa:
+        hibernate:
+          ddl-auto: update
+        database-platform: org.hibernate.dialect.PostgreSQLDialect
+        show-sql: true
+        properties:
+          hibernate:
+            format_sql: true
+      
+      kafka:
+        bootstrap-servers: {{ .Values.global.data.kafka.brokers }}
+        client-id: product-service-${random.uuid}
+        properties:
+          connections.max.idle.ms: 300000
+          request.timeout.ms: 30000
+          session.timeout.ms: 30000
+          heartbeat.interval.ms: 10000
+          metadata.max.age.ms: 300000
+          fetch.min.bytes: 1024
+          fetch.max.wait.ms: 5000
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          batch-size: 16384
+          linger-ms: 5
+          buffer-memory: 33554432
+          retries: 2
+          request-timeout-ms: 30000
+          delivery-timeout-ms: 120000
+          acks: 1
+          properties:
+            spring.json.type.mapping: >-
+              productCreatedEvent:com.Ecommerce.Product_Service.events.ProductEvents$ProductCreatedEvent,
+              productUpdatedEvent:com.Ecommerce.Product_Service.events.ProductEvents$ProductUpdatedEvent,
+              productDeletedEvent:com.Ecommerce.Product_Service.events.ProductEvents$ProductDeletedEvent
+            spring.json.add.type.headers: false
+            enable.idempotence: false
+            max.in.flight.requests.per.connection: 5
+            compression.type: snappy
+        consumer:
+          group-id: product-service-group
+          auto-offset-reset: earliest
+          enable-auto-commit: true
+          auto-commit-interval: 5000
+          max-poll-records: 10
+          max-poll-interval-ms: 300000
+          session-timeout-ms: 30000
+          heartbeat-interval-ms: 10000
+          fetch-min-size: 1024
+          fetch-max-wait: 5000
+          key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          properties:
+            spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+            spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+            spring.json.trusted.packages: "*"
+            spring.json.use.type.headers: false
+            spring.json.value.default.type: java.lang.Object
+        listener:
+          concurrency: 1
+          poll-timeout: 3000
+          type: single
+          ack-mode: batch
+        admin:
+          auto-create: true
+    
+    eureka:
+      instance:
+        preferIpAddress: true
+        instanceId: ${spring.application.name}:${server.port}
+        hostname: {{ .Values.productService.name }}
+        lease-renewal-interval-in-seconds: 30
+        lease-expiration-duration-in-seconds: 90
+        metadataMap:
+          instanceId: ${spring.application.name}:${server.port}
+      client:
+        registryFetchIntervalSeconds: 30
+        instanceInfoReplicationIntervalSeconds: 30
+        initialInstanceInfoReplicationIntervalSeconds: 40
+        eurekaServiceUrlPollIntervalSeconds: 300
+        eureka-server-connect-timeout-seconds: 30
+        eureka-server-read-timeout-seconds: 30
+        eureka-connection-idle-timeout-seconds: 30
+        registerWithEureka: true
+        fetchRegistry: true
+        disable-delta: false
+        cache-refresh-executor-thread-pool-size: 2
+        cache-refresh-executor-exponential-back-off-bound: 10
+        serviceUrl:
+          defaultZone: {{ .Values.global.infrastructure.eureka.url }}
+    
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: "health,info,metrics,prometheus"
+          cors:
+            allowed-origins: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      endpoint:
+        env:
+          show-values: WHEN_AUTHORIZED
+        health:
+          show-details: "WHEN_AUTHORIZED"
+          show-components: "WHEN_AUTHORIZED"
+        metrics:
+          enabled: true
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http.server.requests: true
+          percentiles:
+            http.server.requests: 0.5, 0.95, 0.99
+        tags:
+          application: ${spring.application.name}
+      tracing:
+        sampling:
+          probability: 0.0
+    
+    file:
+      upload-dir: ./uploads/images
+      max-size: 10485760
+      allowed-extensions: jpg,jpeg,png,gif,bmp,webp
+      allowed-mime-types: image/jpeg,image/png,image/gif,image/bmp,image/webp
+    
+    springdoc:
+      api-docs:
+        path: /api-docs
+        enabled: true
+      swagger-ui:
+        path: /swagger-ui.html
+        enabled: true
+        operationsSorter: method
+        tagsSorter: alpha
+        doc-expansion: none
+      group-configs:
+        - group: product-service
+          paths-to-match:
+            - /**
+    
+    logging:
+      level:
+        root: INFO
+        org.springframework.cloud.gateway: WARN
+        org.springframework.web: WARN
+        com.Ecommerce.Gateway_Service: WARN
+        org.springframework.data.redis: WARN
+        org.springframework.test: WARN
+        org.springframework.web.cors: WARN
+        io.github.resilience4j: WARN
+        org.springframework.boot.autoconfigure: WARN
+        com.Ecommerce: INFO
+        org.springframework.kafka: WARN
+        org.apache.kafka: ERROR
+        com.netflix.discovery: WARN
+        com.netflix.eureka: WARN
+        org.springframework.cloud.netflix.eureka: WARN
+        org.springframework.boot: WARN
+        org.springframework.boot.actuate: WARN
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [${spring.application.name}] %logger{36} - %msg%n"
+{{- end }}

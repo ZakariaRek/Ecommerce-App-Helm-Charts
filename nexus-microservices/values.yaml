@@ -1,0 +1,443 @@
+global:
+  namespace: microservices
+  environment: production
+  storageClass: standard
+  nodeSelector:
+    node-role: microservices
+
+  # Global resource defaults
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  # Global image settings
+  imageRegistry: yahyazakaria123
+  imagePullPolicy: IfNotPresent
+  imageTag: "latest"
+
+  # Infrastructure dependencies
+  infrastructure:
+    namespace: infrastructure
+    eureka:
+      enabled: true
+      url: "http://eureka-server.infrastructure.svc.cluster.local:8761/eureka"
+    configServer:
+      enabled: true
+      url: "http://config-server.infrastructure.svc.cluster.local:8888"
+
+  # Data layer dependencies
+  data:
+    namespace: data
+    mongodb:
+      enabled: true
+      host: "mongo-service.data.svc.cluster.local"
+      port: 27017
+    postgresql:
+      enabled: true
+      host: "postgres-service.data.svc.cluster.local"
+      port: 5432
+    redis:
+      enabled: true
+      host: "redis-service.data.svc.cluster.local"
+      port: 6379
+    kafka:
+      enabled: true
+      brokers: "kafka-service.data.svc.cluster.local:9092"
+
+# User Service Configuration
+userService:
+  enabled: true
+  name: user-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-user-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    port: 8081
+
+  config:
+    contextPath: "/api/users"
+    database:
+      name: "User-service"
+      redisDatabase: 0
+    jwt:
+      expirationMs: 86400000
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    jwtSecret: "c03a546beee68b92784e681b537540349c386d02b6dbf9917cf438e47e5c1ee93fdebc55652af00cb3ebc6bff17dc3bedaa33ea6cfdd1959b114ede448c4ac878530221cc3c32f1ef6d5951d0c6b1398bc01c563c7638a0000e6b4064c5733c5552aa232aa8547be8b4b1f8dddacac8256f319acd6832ff5ae93653583e20624fc99dab8489d33e582cf621444e9d944442559707a1f92d556862bb53ce12deb3ec17d3a8bc3c7159b672e4f02189af368a8e71d8547a5b71518de7a1d9a4997d20b4f646fae73e73c2666679b21cdec5544b7431975bb0a27d4e124ec5f13bf8f338ce3ba5ad8b3af1a8aae211bef3eb6ca4f8a24e6b80662c94530e168b0dc"
+    mongodbUsername: "userservice"
+    mongodbPassword: "userservice123"
+
+# Product Service Configuration
+productService:
+  enabled: true
+  name: product-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-product-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    port: 8082
+
+  config:
+    contextPath: "/api/products"
+    database:
+      name: "productdb"
+      service: "product-postgres-service.data.svc.cluster.local"
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    dbUsername: "productservice"
+    dbPassword: "productservice123"
+
+# Cart Service Configuration
+cartService:
+  enabled: true
+  name: cart-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-cart-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    port: 8082
+
+  config:
+    contextPath: "/api/carts"
+    database:
+      name: "cartdb"
+      service: "cart-mongodb-headless.data.svc.cluster.local"
+      redisDatabase: 3
+    sessionTimeout: 1800
+    cacheTimeout: 600
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    mongodbUsername: "cartservice"
+    mongodbPassword: "cartservice123"
+
+# Order Service Configuration
+orderService:
+  enabled: true
+  name: order-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-order-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8082
+
+  config:
+    database:
+      name: "orderdb"
+      service: "postgres-service.data.svc.cluster.local"
+      redisDatabase: 3
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    dbUsername: "orderservice"
+    dbPassword: "orderservice123"
+
+# Payment Service Configuration
+paymentService:
+  enabled: true
+  name: payment-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-payment-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8084
+
+  config:
+    database:
+      name: "paymentdb"
+      service: "postgres-service.data.svc.cluster.local"
+      redisDatabase: 4
+    features:
+      stripe: true
+      paypal: false
+      refunds: true
+      webhooks: true
+    security:
+      maxPaymentAmount: "10000.00"
+      minPaymentAmount: "0.50"
+      defaultCurrency: "USD"
+
+  secrets:
+    dbUsername: "paymentservice"
+    dbPassword: "paymentservice123"
+    stripeApiKey: "sk_live_stripe_api_key_here"
+    stripeWebhookSecret: "whsec_stripe_webhook_secret_here"
+    jwtSecret: "c03a546beee68b92784e681b537540349c386d02b6dbf9917cf438e47e5c1ee93fdebc55652af00cb3ebc6bff17dc3bedaa33ea6cfdd1959b114ede448c4ac878530221cc3c32f1ef6d5951d0c6b1398bc01c563c7638a0000e6b4064c5733c5552aa232aa8547be8b4b1f8dddacac8256f319acd6832ff5ae93653583e20624fc99dab8489d33e582cf621444e9d944442559707a1f92d556862bb53ce12deb3ec17d3a8bc3c7159b672e4f02189af368a8e71d8547a5b71518de7a1d9a4997d20b4f646fae73e73c2666679b21cdec5544b7431975bb0a27d4e124ec5f13bf8f338ce3ba5ad8b3af1a8aae211bef3eb6ca4f8a24e6b80662c94530e168b0dc"
+    encryptionKey: "32byte-encryption-key-for-payments-data-encryption"
+
+# Notification Service Configuration
+notificationService:
+  enabled: true
+  name: notification-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-notification-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8086
+
+  config:
+    database:
+      name: "notificationdb"
+      service: "mongo-service.data.svc.cluster.local"
+      redisDatabase: 3
+    features:
+      sms: false
+      push: false
+      websocket: false
+      email: true
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    mailHost: "smtp.gmail.com"
+    mailPort: "587"
+    mailUsername: "notifications@nexuscommerce.com"
+    mailPassword: "your-app-password"
+    emailFrom: "notifications@nexuscommerce.com"
+
+# Loyalty Service Configuration
+loyaltyService:
+  enabled: true
+  name: loyalty-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-loyalty-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8084
+
+  config:
+    contextPath: "/api/loyalty"
+    database:
+      name: "loyalty-service"
+      service: "loyalty-postgres-service.data.svc.cluster.local"
+      redisDatabase: 3
+    tiers:
+      bronzeThreshold: 0
+      silverThreshold: 500
+      goldThreshold: 2000
+      platinumThreshold: 5000
+      diamondThreshold: 10000
+    points:
+      orderRate: 1.0
+      reviewPoints: 10
+      signupBonus: 100
+      firstOrderBonus: 100
+      referralBonus: 200
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    dbUsername: "loyaltyservice"
+    dbPassword: "loyaltyservice123"
+
+# Shipping Service Configuration
+shippingService:
+  enabled: true
+  name: shipping-service
+  image:
+    repository: yahyazakaria123/ecommerce-app-shipping-service
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+    port: 8085
+
+  config:
+    database:
+      name: "shippingdb"
+      service: "shipping-postgres-service.data.svc.cluster.local"
+    features:
+      gpsTracking: true
+      realTimeLocation: true
+    profiles:
+      active: "docker,kafka"
+
+  secrets:
+    dbUsername: "shippingservice"
+    dbPassword: "shippingservice123"
+    jwtSecret: "shipping-jwt-secret-key-for-authentication-and-authorization-2024"
+    encryptionKey: "shipping-encryption-key-for-sensitive-data-encryption"
+
+# Networking and Ingress
+networking:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    hosts:
+      - host: microservices.nexus-commerce.local
+        paths:
+          - path: /api/users
+            service: user-service
+            port: 8081
+          - path: /api/products
+            service: product-service
+            port: 8082
+          - path: /api/carts
+            service: cart-service
+            port: 8082
+          - path: /api/orders
+            service: order-service
+            port: 8082
+          - path: /api/payments
+            service: payment-service
+            port: 8084
+          - path: /api/notifications
+            service: notification-service
+            port: 8086
+          - path: /api/loyalty
+            service: loyalty-service
+            port: 8084
+          - path: /api/shipping
+            service: shipping-service
+            port: 8085
+
+# Service Mesh Configuration
+serviceMesh:
+  enabled: false
+  istio:
+    enabled: false
+    sidecarInjection: true
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  healthChecks:
+    enabled: true
+
+# Security Configuration
+security:
+  enabled: true
+  networkPolicies:
+    enabled: false  # Enable in production
+  podSecurityPolicy:
+    enabled: false  # Enable in production
+
+# Autoscaling Configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

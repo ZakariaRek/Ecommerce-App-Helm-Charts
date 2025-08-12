@@ -1,0 +1,342 @@
+{{- if .Values.cartService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.cartService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.cartservice.labels" . | nindent 4 }}
+    app: {{ .Values.cartService.name }}
+spec:
+  replicas: {{ .Values.cartService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.cartService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.cartservice.labels" . | nindent 8 }}
+        app: {{ .Values.cartService.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cart-service
+          image: "{{ .Values.cartService.image.repository }}:{{ .Values.cartService.image.tag }}"
+          imagePullPolicy: {{ .Values.cartService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.cartService.service.port }}
+              name: http
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1536m -Xms512m -XX:MaxMetaspaceSize=256m"
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.cartService.config.profiles.active | quote }}
+            - name: SPRING_APPLICATION_NAME
+              value: "cart-service"
+            - name: SERVER_PORT
+              value: {{ .Values.cartService.service.port | quote }}
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: {{ .Values.cartService.config.contextPath | quote }}
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: {{ .Values.cartService.name | quote }}
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: {{ .Values.global.infrastructure.configServer.url | quote }}
+            # MongoDB Configuration
+            - name: SPRING_DATA_MONGODB_HOST
+              value: "{{ .Values.cartService.config.database.service }}"
+            - name: SPRING_DATA_MONGODB_PORT
+              value: {{ .Values.global.data.mongodb.port | quote }}
+            - name: SPRING_DATA_MONGODB_DATABASE
+              value: {{ .Values.cartService.config.database.name | quote }}
+            - name: SPRING_DATA_MONGODB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cartService.name }}-secrets
+                  key: mongodb-username
+            - name: SPRING_DATA_MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cartService.name }}-secrets
+                  key: mongodb-password
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://$(SPRING_DATA_MONGODB_USERNAME):$(SPRING_DATA_MONGODB_PASSWORD)@{{ .Values.cartService.config.database.service }}:{{ .Values.global.data.mongodb.port }}/{{ .Values.cartService.config.database.name }}"
+            # Redis Configuration
+            - name: SPRING_DATA_REDIS_HOST
+              value: {{ .Values.global.data.redis.host | quote }}
+            - name: SPRING_DATA_REDIS_PORT
+              value: {{ .Values.global.data.redis.port | quote }}
+            - name: SPRING_DATA_REDIS_DATABASE
+              value: {{ .Values.cartService.config.database.redisDatabase | quote }}
+            - name: SPRING_DATA_REDIS_TIMEOUT
+              value: "2000ms"
+            # Kafka Configuration
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "cart-service-group"
+          resources:
+            {{- toYaml .Values.cartService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.cartService.config.contextPath }}/actuator/health
+              port: {{ .Values.cartService.service.port }}
+            initialDelaySeconds: 180
+            periodSeconds: 45
+            timeoutSeconds: 15
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.cartService.config.contextPath }}/actuator/health/readiness
+              port: {{ .Values.cartService.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 8
+          startupProbe:
+            httpGet:
+              path: {{ .Values.cartService.config.contextPath }}/actuator/health
+              port: {{ .Values.cartService.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 30
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+            - name: logs-volume
+              mountPath: /app/logs
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.cartService.name }}-config
+        - name: logs-volume
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-mongodb
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Cart MongoDB..."
+              until nc -z {{ .Values.cartService.config.database.service }} {{ .Values.global.data.mongodb.port }}; do 
+                echo "MongoDB not ready, waiting..."
+                sleep 3
+              done
+              echo "Cart MongoDB is ready!"
+        - name: wait-for-redis
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Redis..."
+              until nc -z {{ .Values.global.data.redis.host }} {{ .Values.global.data.redis.port }}; do 
+                echo "Redis not ready, waiting..."
+                sleep 3
+              done
+              echo "Redis is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092; do 
+                echo "Kafka not ready, waiting..."
+                sleep 3
+              done
+              echo "Kafka is ready!"
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Eureka..."
+              until nc -z eureka-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8761; do 
+                echo "Eureka not ready, waiting..."
+                sleep 3
+              done
+              echo "Eureka is ready!"
+{{- end }}
+
+---
+{{- if .Values.cartService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.cartService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.cartservice.labels" . | nindent 4 }}
+    app: {{ .Values.cartService.name }}
+spec:
+  selector:
+    app: {{ .Values.cartService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.cartService.service.port }}
+      targetPort: {{ .Values.cartService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.cartService.service.type "NodePort") .Values.cartService.service.nodePort }}
+      nodePort: {{ .Values.cartService.service.nodePort }}
+      {{- end }}
+  type: {{ .Values.cartService.service.type }}
+{{- end }}
+
+---
+{{- if .Values.cartService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.cartService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.cartservice.labels" . | nindent 4 }}
+    app: {{ .Values.cartService.name }}
+type: Opaque
+data:
+  mongodb-username: {{ .Values.cartService.secrets.mongodbUsername | b64enc }}
+  mongodb-password: {{ .Values.cartService.secrets.mongodbPassword | b64enc }}
+{{- end }}
+
+---
+{{- if .Values.cartService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.cartService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.cartservice.labels" . | nindent 4 }}
+    app: {{ .Values.cartService.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.cartService.service.port }}
+      servlet:
+        context-path: {{ .Values.cartService.config.contextPath }}
+      error:
+        include-stacktrace: always
+        include-message: always
+        include-binding-errors: always
+    
+    debug: true
+    
+    spring:
+      profiles:
+        active: {{ .Values.cartService.config.profiles.active }}
+      config:
+        import: optional:configserver:{{ .Values.global.infrastructure.configServer.url }}
+      application:
+        name: cart-service
+      
+      data:
+        mongodb:
+          host: {{ .Values.cartService.config.database.service }}
+          port: {{ .Values.global.data.mongodb.port }}
+          database: {{ .Values.cartService.config.database.name }}
+          username: ${SPRING_DATA_MONGODB_USERNAME}
+          password: ${SPRING_DATA_MONGODB_PASSWORD}
+          uri: ${SPRING_DATA_MONGODB_URI}
+        
+        redis:
+          host: {{ .Values.global.data.redis.host }}
+          port: {{ .Values.global.data.redis.port }}
+          database: {{ .Values.cartService.config.database.redisDatabase }}
+          timeout: 2000ms
+          lettuce:
+            pool:
+              max-active: 8
+              max-idle: 8
+              min-idle: 0
+              max-wait: -1ms
+        
+        cache:
+          type: redis
+          redis:
+            time-to-live: {{ .Values.cartService.config.cacheTimeout }}000
+            cache-null-values: false
+      
+      kafka:
+        bootstrap-servers: {{ .Values.global.data.kafka.brokers }}
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          properties:
+            spring.json.add.type.headers: false
+            acks: all
+            retries: 3
+            enable.idempotence: true
+        consumer:
+          group-id: cart-service-group
+          auto-offset-reset: earliest
+          enable-auto-commit: false
+          key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          properties:
+            spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+            spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+            spring.json.trusted.packages: "*"
+            spring.json.use.type.headers: false
+            spring.json.value.default.type: java.lang.Object
+    
+    eureka:
+      instance:
+        preferIpAddress: true
+        instanceId: ${spring.application.name}:${server.port}
+        hostname: {{ .Values.cartService.name }}
+        metadataMap:
+          instanceId: ${spring.application.name}:${server.port}
+      client:
+        registryFetchIntervalSeconds: 5
+        instanceInfoReplicationIntervalSeconds: 5
+        initialInstanceInfoReplicationIntervalSeconds: 5
+        eurekaServiceUrlPollIntervalSeconds: 5
+        registerWithEureka: true
+        fetchRegistry: true
+        serviceUrl:
+          defaultZone: {{ .Values.global.infrastructure.eureka.url }}
+    
+    management:
+      health:
+        mongo:
+          enabled: true
+        redis:
+          enabled: true
+      endpoint:
+        health:
+          show-details: "ALWAYS"
+          show-components: "ALWAYS"
+        metrics:
+          enabled: true
+      endpoints:
+        web:
+          exposure:
+            include: "*"
+          cors:
+            allowed-origins: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http.server.requests: true
+          percentiles:
+            http.server.requests: 0.5, 0.95, 0.99
+        tags:
+          application: ${spring.application.name}
+    
+    redis:
+      maximumActiveConnectionCount: 128
+    
+    cart:
+      session:
+        timeout: {{ .Values.cartService.config.sessionTimeout }}
+      cache:
+        ttl: {{ .Values.cartService.config.cacheTimeout }}
+      cleanup:
+        schedule: "0 0 */6 * * *"
+{{- end }}
