@@ -1,63 +1,25 @@
 global:
-  namespace: microservices
+  namespace: tools
   environment: development
   storageClass: standard
   nodeSelector:
-    node-role: microservices
+    node-role: infrastructure
 
-  # Reduced resources for development
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "250m"
-
-# User Service Configuration for Development
-userService:
+# Kafka UI Configuration for Development
+kafkaUI:
   enabled: true
-  replicas: 1  # Single replica for dev
+  replicas: 1
 
   resources:
     requests:
-      memory: "512Mi"
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
       cpu: "200m"
-    limits:
-      memory: "1Gi"
-      cpu: "500m"
 
-  service:
-    type: NodePort  # NodePort for direct access
-    nodePort: 30081
-
-  config:
-    profiles:
-      active: "dev,docker,kafka"
-
-# Product Service Configuration for Development
-productService:
-  enabled: true
-  replicas: 1
-
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "250m"
-    limits:
-      memory: "1Gi"
-      cpu: "500m"
-
-  service:
-    type: NodePort
-    nodePort: 30082
-
-  config:
-    profiles:
-      active: "dev,docker,kafka"
-
-# Cart Service Configuration for Development
-cartService:
+# Prometheus Configuration for Development
+prometheus:
   enabled: true
   replicas: 1
 
@@ -67,230 +29,152 @@ cartService:
       cpu: "100m"
     limits:
       memory: "512Mi"
-      cpu: "250m"
+      cpu: "300m"
 
-  service:
-    type: NodePort
-    nodePort: 30083
+  storage:
+    size: 2Gi  # Smaller storage for dev
 
   config:
-    profiles:
-      active: "dev,docker,kafka"
-    database:
-      name: "cartdb_dev"
-    sessionTimeout: 3600  # Longer timeout for dev
-    cacheTimeout: 300     # Shorter cache for dev
+    retention: "7d"  # Shorter retention for dev
 
-# Order Service Configuration for Development
-orderService:
+# Grafana Configuration for Development
+grafana:
   enabled: true
   replicas: 1
 
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "100m"
+      memory: "128Mi"
+      cpu: "50m"
     limits:
-      memory: "512Mi"
-      cpu: "250m"
+      memory: "256Mi"
+      cpu: "200m"
 
-  service:
-    type: NodePort
-    nodePort: 30084
+  storage:
+    size: 1Gi  # Smaller storage for dev
 
   config:
-    profiles:
-      active: "dev,docker,kafka"
-    database:
-      name: "orderdb_dev"
+    adminPassword: "dev123"  # Simple password for dev
 
-# Payment Service Configuration for Development
-paymentService:
+# Swagger UI Configuration for Development
+swaggerUI:
   enabled: true
   replicas: 1
 
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "100m"
+      memory: "32Mi"
+      cpu: "25m"
     limits:
-      memory: "512Mi"
-      cpu: "250m"
+      memory: "64Mi"
+      cpu: "50m"
 
-  service:
-    type: NodePort
-    nodePort: 30085
-
-  config:
-    database:
-      name: "paymentdb_dev"
-    features:
-      stripe: true
-      paypal: false  # Disabled for dev
-      refunds: true
-      webhooks: false  # Disabled for dev
-
-# Notification Service Configuration for Development
-notificationService:
+# Adminer Configuration for Development
+adminer:
   enabled: true
   replicas: 1
 
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "100m"
+      memory: "16Mi"
+      cpu: "10m"
     limits:
-      memory: "512Mi"
-      cpu: "250m"
+      memory: "64Mi"
+      cpu: "50m"
 
-  service:
-    type: NodePort
-    nodePort: 30086
-
-  config:
-    profiles:
-      active: "dev,docker,kafka"
-    database:
-      name: "notificationdb_dev"
-    features:
-      sms: false
-      push: false
-      websocket: true  # Enabled for dev testing
-      email: true
-
-# Loyalty Service Configuration for Development
-loyaltyService:
+# pgAdmin Configuration for Development
+pgAdmin:
   enabled: true
   replicas: 1
 
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "100m"
+      memory: "128Mi"
+      cpu: "50m"
     limits:
-      memory: "512Mi"
-      cpu: "250m"
+      memory: "256Mi"
+      cpu: "150m"
 
-  service:
-    type: NodePort
-    nodePort: 30087
+  storage:
+    size: 500Mi  # Smaller storage for dev
 
   config:
-    profiles:
-      active: "dev,docker,kafka"
-    database:
-      name: "loyalty-service-dev"
+    defaultPassword: "dev123"
 
-# Shipping Service Configuration for Development
-shippingService:
+# Redis Commander Configuration for Development
+redisCommander:
   enabled: true
   replicas: 1
 
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "100m"
+      memory: "32Mi"
+      cpu: "10m"
     limits:
-      memory: "512Mi"
-      cpu: "250m"
+      memory: "64Mi"
+      cpu: "50m"
 
-  service:
-    type: NodePort
-    nodePort: 30088
+# Jaeger Configuration for Development (if needed)
+jaeger:
+  enabled: false  # Keep disabled for dev
 
-  config:
-    profiles:
-      active: "dev,docker,kafka"
-    database:
-      name: "shippingdb_dev"
-    features:
-      gpsTracking: true
-      realTimeLocation: true
+# Kiali Configuration for Development
+kiali:
+  enabled: false  # Disable for dev unless testing Istio
 
-# Networking and Ingress for Development
-networking:
-  ingress:
-    enabled: true
-    className: nginx
-    annotations:
-      nginx.ingress.kubernetes.io/rewrite-target: /
-      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-      nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
-      nginx.ingress.kubernetes.io/enable-cors: "true"
-      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-      nginx.ingress.kubernetes.io/ssl-redirect: "false"  # No SSL for dev
-    hosts:
-      - host: microservices-dev.nexus-commerce.local
-        paths:
-          - path: /api/users
-            service: user-service
-            port: 8081
-          - path: /api/products
-            service: product-service
-            port: 8082
-          - path: /api/carts
-            service: cart-service
-            port: 8082
-          - path: /api/orders
-            service: order-service
-            port: 8082
-          - path: /api/payments
-            service: payment-service
-            port: 8084
-          - path: /api/notifications
-            service: notification-service
-            port: 8086
-          - path: /api/loyalty
-            service: loyalty-service
-            port: 8084
-          - path: /api/shipping
-            service: shipping-service
-            port: 8085
+# ElasticSearch for Development
+elasticsearch:
+  enabled: false  # Disable for dev to save resources
 
-# CRITICAL: Completely disable monitoring to avoid CRD issues
-monitoring:
-  enabled: false
-  prometheus:
-    enabled: false
-    serviceMonitor:
-      enabled: false
-  grafana:
-    enabled: false
-  healthChecks:
-    enabled: true
-  alerts:
-    enabled: false  # Add this to disable alerts
-  rules:
-    enabled: false  # Add this to disable PrometheusRules
+# Kibana for Development
+kibana:
+  enabled: false  # Disable for dev to save resources
 
-# Security Configuration for Development
+# Ingress Configuration for Development
+ingress:
+  enabled: true
+  hosts:
+    - host: tools.nexus-commerce.local
+      paths:
+        - path: /kafka-ui
+          pathType: Prefix
+          service: kafka-ui
+          port: 8080
+        - path: /grafana
+          pathType: Prefix
+          service: grafana
+          port: 3000
+        - path: /prometheus
+          pathType: Prefix
+          service: prometheus
+          port: 9090
+        - path: /swagger
+          pathType: Prefix
+          service: swagger-ui
+          port: 8080
+        - path: /adminer
+          pathType: Prefix
+          service: adminer
+          port: 8080
+        - path: /pgadmin
+          pathType: Prefix
+          service: pgadmin
+          port: 80
+        - path: /redis
+          pathType: Prefix
+          service: redis-commander
+          port: 8081
+
+# Security for Development
 security:
   enabled: false  # Relaxed security for dev
   networkPolicies:
     enabled: false
-  podSecurityPolicy:
-    enabled: false
 
-# Autoscaling disabled for development
-autoscaling:
-  enabled: false
-
-# Service Mesh disabled for development
-serviceMesh:
-  enabled: false
-
-# Development-specific features
-development:
-  debugMode: true
-  logLevel: DEBUG
-  enableRequestLogging: true
-  enableSqlLogging: true
-  enableDetailedMetrics: false  # Disable to avoid monitoring issues
-
-  # Development tools
-  tools:
-    swagger:
-      enabled: true
-    actuator:
-      enabled: true
-      exposeAll: true
+# Monitoring for Development
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Disable service monitor for dev
+  healthChecks:
+    enabled: true
