@@ -1,0 +1,378 @@
+# nexus-microservices/templates/security/network-policy.yaml
+  {{- if .Values.security.networkPolicies.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-network-policy
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      component: microservices
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              name: istio-system
+      ports:
+        - protocol: TCP
+          port: 8081  # User Service
+        - protocol: TCP
+          port: 8082  # Product, Cart, Order Services
+        - protocol: TCP
+          port: 8084  # Payment, Loyalty Services
+        - protocol: TCP
+          port: 8085  # Shipping Service
+        - protocol: TCP
+          port: 8086  # Notification Service
+
+    # Allow inter-microservice communication within the namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.global.namespace }}
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086
+
+    # Allow monitoring traffic
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 8085
+        - protocol: TCP
+          port: 8086
+
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Allow access to infrastructure services
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.global.infrastructure.namespace }}
+      ports:
+        - protocol: TCP
+          port: 8761  # Eureka
+        - protocol: TCP
+          port: 8888  # Config Server
+        - protocol: TCP
+          port: 9411  # Zipkin
+
+    # Allow access to data services
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.global.data.namespace }}
+      ports:
+        - protocol: TCP
+          port: 27017  # MongoDB
+        - protocol: TCP
+          port: 5432   # PostgreSQL
+        - protocol: TCP
+          port: 6379   # Redis
+        - protocol: TCP
+          port: 9092   # Kafka
+
+    # Allow HTTPS egress for external APIs (Stripe, PayPal, etc.)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+---
+# Specific network policy for payment service (more restrictive)
+  {{- if and .Values.paymentService.enabled .Values.security.networkPolicies.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payment-service-network-policy
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: payment-service-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.paymentService.name }}
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Only allow traffic from order service and ingress
+    - from:
+        - podSelector:
+            matchLabels:
+              app: {{ .Values.orderService.name }}
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: {{ .Values.paymentService.service.port }}
+
+  egress:
+    # DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+
+    # Database access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.global.data.namespace }}
+      ports:
+        - protocol: TCP
+          port: 5432   # PostgreSQL
+        - protocol: TCP
+          port: 6379   # Redis
+
+    # External payment providers (HTTPS only)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+  {{- end }}
+
+---
+# nexus-microservices/templates/security/rbac.yaml
+  {{- if .Values.security.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.security.rbac.serviceAccountName }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-service-account
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-role
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-rbac
+rules:
+  # Allow reading pods and services for service discovery
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+
+  # Allow reading configmaps for configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+  # Allow reading secrets (limited)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - "{{ .Values.userService.name }}-secrets"
+      - "{{ .Values.productService.name }}-secrets"
+      - "{{ .Values.cartService.name }}-secrets"
+      - "{{ .Values.orderService.name }}-secrets"
+      - "{{ .Values.paymentService.name }}-secrets"
+      - "{{ .Values.notificationService.name }}-secrets"
+      - "{{ .Values.loyaltyService.name }}-secrets"
+      - "{{ .Values.shippingService.name }}-secrets"
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-rolebinding
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-rbac
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.security.rbac.serviceAccountName }}
+    namespace: {{ .Values.global.namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "nexus-microservices.fullname" . }}-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Cluster role for cross-namespace access (infrastructure, data)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-cluster-role
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-cluster-rbac
+rules:
+  # Allow reading services in infrastructure namespace for Eureka, Config Server
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+    resourceNames:
+      - "eureka-server"
+      - "config-server"
+      - "zipkin-server"
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-cluster-rolebinding
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-cluster-rbac
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.security.rbac.serviceAccountName }}
+    namespace: {{ .Values.global.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "nexus-microservices.fullname" . }}-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+  {{- end }}
+
+---
+# nexus-microservices/templates/security/pod-security-policy.yaml
+  {{- if .Values.security.podSecurityPolicy.enabled }}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-psp
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-psp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  runAsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1000
+        max: 65535
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: false
+  # Allow specific hostPorts for NodePort services in dev
+  {{- if eq .Values.global.environment "development" }}
+  hostPorts:
+    - min: 30080
+      max: 32767
+  {{- else }}
+  hostPorts: []
+  {{- end }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-psp-role
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-psp-role
+rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs: ['use']
+    resourceNames:
+      - {{ include "nexus-microservices.fullname" . }}-psp
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "nexus-microservices.fullname" . }}-psp-rolebinding
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-psp-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.security.rbac.serviceAccountName }}
+    namespace: {{ .Values.global.namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "nexus-microservices.fullname" . }}-psp-role
+  apiGroup: rbac.authorization.k8s.io
+  {{- end }}
+
+---
+# nexus-microservices/templates/security/pod-disruption-budget.yaml
+  {{- if .Values.highAvailability.podDisruptionBudget.enabled }}
+  {{- range $service := list "userService" "productService" "cartService" "orderService" "paymentService" "notificationService" "loyaltyService" "shippingService" }}
+  {{- $serviceConfig := index $.Values $service }}
+  {{- if $serviceConfig.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $serviceConfig.name }}-pdb
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" $ | nindent 4 }}
+    app: {{ $serviceConfig.name }}
+spec:
+  minAvailable: {{ $.Values.highAvailability.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ $serviceConfig.name }}
+---
+{{- end }}
+  {{- end }}
+  {{- end }}

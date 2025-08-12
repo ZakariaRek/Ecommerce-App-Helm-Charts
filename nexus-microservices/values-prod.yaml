@@ -1,0 +1,475 @@
+global:
+  namespace: microservices
+  environment: production
+  storageClass: fast-ssd
+  nodeSelector:
+    node-role: microservices
+    node-tier: production
+
+  # Enhanced resource allocation for production
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# User Service Configuration for Production
+userService:
+  enabled: true
+  replicas: 3  # High availability
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "User-service"
+    jwt:
+      expirationMs: 3600000  # 1 hour for production
+
+  # Production secrets (replace with actual values)
+  secrets:
+    jwtSecret: "production-jwt-secret-replace-with-actual-256-bit-key"
+    mongodbUsername: "userservice_prod"
+    mongodbPassword: "userservice_prod_password_replace_with_actual"
+
+# Product Service Configuration for Production
+productService:
+  enabled: true
+  replicas: 3
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "productdb"
+      service: "product-postgres-service.data.svc.cluster.local"
+
+  secrets:
+    dbUsername: "productservice_prod"
+    dbPassword: "productservice_prod_password_replace_with_actual"
+
+# Cart Service Configuration for Production
+cartService:
+  enabled: true
+  replicas: 3
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "cartdb"
+      service: "cart-mongodb-headless.data.svc.cluster.local"
+      redisDatabase: 3
+    sessionTimeout: 1800  # 30 minutes
+    cacheTimeout: 900     # 15 minutes
+
+  secrets:
+    mongodbUsername: "cartservice_prod"
+    mongodbPassword: "cartservice_prod_password_replace_with_actual"
+
+# Order Service Configuration for Production
+orderService:
+  enabled: true
+  replicas: 3
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "orderdb"
+      service: "postgres-service.data.svc.cluster.local"
+
+  secrets:
+    dbUsername: "orderservice_prod"
+    dbPassword: "orderservice_prod_password_replace_with_actual"
+
+# Payment Service Configuration for Production
+paymentService:
+  enabled: true
+  replicas: 3  # Critical service - high availability
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    database:
+      name: "paymentdb"
+      service: "postgres-service.data.svc.cluster.local"
+      redisDatabase: 4
+    features:
+      stripe: true
+      paypal: true
+      refunds: true
+      webhooks: true
+    security:
+      maxPaymentAmount: "10000.00"
+      minPaymentAmount: "0.50"
+      defaultCurrency: "USD"
+
+  secrets:
+    dbUsername: "paymentservice_prod"
+    dbPassword: "paymentservice_prod_password_replace_with_actual"
+    stripeApiKey: "sk_live_actual_stripe_api_key_here"
+    stripeWebhookSecret: "whsec_actual_stripe_webhook_secret_here"
+    paypalClientId: "actual_paypal_client_id_here"
+    paypalClientSecret: "actual_paypal_client_secret_here"
+    jwtSecret: "production-payment-jwt-secret-replace-with-actual"
+    encryptionKey: "32byte-encryption-key-replace-with-actual"
+
+# Notification Service Configuration for Production
+notificationService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "notificationdb"
+      service: "mongo-service.data.svc.cluster.local"
+      redisDatabase: 3
+    features:
+      sms: true
+      push: true
+      websocket: true
+      email: true
+
+  secrets:
+    mailHost: "smtp.gmail.com"
+    mailPort: "587"
+    mailUsername: "notifications@your-production-domain.com"
+    mailPassword: "actual-production-app-password"
+    emailFrom: "notifications@your-production-domain.com"
+
+# Loyalty Service Configuration for Production
+loyaltyService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "loyalty-service"
+      service: "loyalty-postgres-service.data.svc.cluster.local"
+    tiers:
+      bronzeThreshold: 0
+      silverThreshold: 1000
+      goldThreshold: 5000
+      platinumThreshold: 15000
+      diamondThreshold: 50000
+    points:
+      orderRate: 1.0
+      reviewPoints: 25
+      signupBonus: 500
+      firstOrderBonus: 200
+      referralBonus: 1000
+
+  secrets:
+    dbUsername: "loyaltyservice_prod"
+    dbPassword: "loyaltyservice_prod_password_replace_with_actual"
+
+# Shipping Service Configuration for Production
+shippingService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "prod,docker,kafka"
+    database:
+      name: "shippingdb"
+      service: "shipping-postgres-service.data.svc.cluster.local"
+    features:
+      gpsTracking: true
+      realTimeLocation: true
+
+  secrets:
+    dbUsername: "shippingservice_prod"
+    dbPassword: "shippingservice_prod_password_replace_with_actual"
+    jwtSecret: "production-shipping-jwt-secret-replace-with-actual"
+    encryptionKey: "production-shipping-encryption-key-replace-with-actual"
+
+# Networking and Ingress for Production
+networking:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/hsts: "true"
+      nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+      nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "1000"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: api.nexuscommerce.com
+        paths:
+          - path: /api/users
+            service: user-service
+            port: 8081
+          - path: /api/products
+            service: product-service
+            port: 8082
+          - path: /api/carts
+            service: cart-service
+            port: 8082
+          - path: /api/orders
+            service: order-service
+            port: 8082
+          - path: /api/payments
+            service: payment-service
+            port: 8084
+          - path: /api/notifications
+            service: notification-service
+            port: 8086
+          - path: /api/loyalty
+            service: loyalty-service
+            port: 8084
+          - path: /api/shipping
+            service: shipping-service
+            port: 8085
+    tls:
+      - hosts:
+          - api.nexuscommerce.com
+        secretName: nexus-api-tls
+
+# Service Mesh Configuration
+serviceMesh:
+  enabled: true
+  istio:
+    enabled: true
+    sidecarInjection: true
+    mTLS:
+      enabled: true
+      mode: STRICT
+
+# Monitoring Configuration for Production
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+    retention: "30d"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: "10Gi"
+  healthChecks:
+    enabled: true
+    timeout: 30
+    interval: 60
+
+# Security Configuration for Production
+security:
+  enabled: true
+  networkPolicies:
+    enabled: true
+    denyAll: false
+    allowIngress: true
+    allowEgress: true
+  podSecurityPolicy:
+    enabled: true
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+  rbac:
+    enabled: true
+    serviceAccountName: "nexus-microservices"
+
+# Autoscaling Configuration for Production
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+
+# Backup and Disaster Recovery
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
+  storage:
+    size: "100Gi"
+    storageClass: "backup-storage"
+
+# High Availability Configuration
+highAvailability:
+  enabled: true
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  topologySpreadConstraints:
+    enabled: true
+    maxSkew: 1
+    topologyKey: "kubernetes.io/hostname"
+    whenUnsatisfiable: DoNotSchedule
+
+# Resource Quotas and Limits
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "20"
+    requests.memory: "40Gi"
+    limits.cpu: "40"
+    limits.memory: "80Gi"
+    persistentvolumeclaims: "20"
+    services: "20"
+    secrets: "50"
+    configmaps: "50"
+
+# Production-specific features
+production:
+  logging:
+    level: INFO
+    aggregation:
+      enabled: true
+      elasticsearch:
+        enabled: true
+        url: "https://elasticsearch.logging.svc.cluster.local:9200"
+  tracing:
+    enabled: true
+    jaeger:
+      enabled: true
+      sampling: 0.1
+  metrics:
+    enabled: true
+    detailed: false
+  healthChecks:
+    strict: true
+    timeout: 10
+  gracefulShutdown:
+    enabled: true
+    timeout: 30
+
+# External Services Configuration
+externalServices:
+  database:
+    ssl:
+      enabled: true
+      mode: require
+    connectionPool:
+      maxConnections: 100
+      minConnections: 10
+  redis:
+    ssl:
+      enabled: true
+    cluster:
+      enabled: true
+  kafka:
+    ssl:
+      enabled: true
+    authentication:
+      enabled: true

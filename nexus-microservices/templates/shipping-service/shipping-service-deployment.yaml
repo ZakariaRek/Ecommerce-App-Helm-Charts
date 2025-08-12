@@ -1,0 +1,428 @@
+# nexus-microservices/templates/shipping-service/shipping-service-deployment.yaml
+  {{- if .Values.shippingService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.shippingService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.shippingservice.labels" . | nindent 4 }}
+    app: {{ .Values.shippingService.name }}
+spec:
+  replicas: {{ .Values.shippingService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.shippingService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.shippingservice.labels" . | nindent 8 }}
+        app: {{ .Values.shippingService.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.shippingService.service.port | quote }}
+        prometheus.io/path: "/metrics"
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: shipping-service
+          image: "{{ .Values.shippingService.image.repository }}:{{ .Values.shippingService.image.tag }}"
+          imagePullPolicy: {{ .Values.shippingService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.shippingService.service.port }}
+              name: http
+              protocol: TCP
+          env:
+            # Go Application Settings
+            - name: PORT
+              value: {{ .Values.shippingService.service.port | quote }}
+            - name: GIN_MODE
+              value: "release"
+            - name: GOOS
+              value: "linux"
+            - name: GOARCH
+              value: "amd64"
+
+            # Service Configuration
+            - name: SERVICE_NAME
+              value: "shipping-service"
+            - name: SERVICE_VERSION
+              value: "2.0.0"
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment | quote }}
+
+            # Database Configuration
+            - name: DB_HOST
+              value: {{ .Values.shippingService.config.database.service | quote }}
+            - name: DB_PORT
+              value: {{ .Values.global.data.postgresql.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.shippingService.config.database.name | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.shippingService.name }}-secrets
+                  key: db-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.shippingService.name }}-secrets
+                  key: db-password
+            - name: DB_SSLMODE
+              value: "disable"
+            - name: DB_MAX_OPEN_CONNS
+              value: "25"
+            - name: DB_MAX_IDLE_CONNS
+              value: "5"
+
+            # Redis Configuration (optional for shipping)
+            - name: REDIS_HOST
+              value: {{ .Values.global.data.redis.host | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.global.data.redis.port | quote }}
+            - name: REDIS_DB
+              value: "5"
+            - name: REDIS_PASSWORD
+              value: ""
+
+            # Kafka Configuration
+            - name: KAFKA_BROKERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: KAFKA_CONSUMER_GROUP
+              value: "shipping-service-group"
+
+            # Service Discovery
+            - name: EUREKA_URL
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: INSTANCE_ID
+              value: "shipping-service:{{ .Values.shippingService.service.port }}"
+
+            # Shipping Service Features
+            - name: ENABLE_GPS_TRACKING
+              value: {{ .Values.shippingService.config.features.gpsTracking | quote }}
+            - name: ENABLE_REAL_TIME_LOCATION
+              value: {{ .Values.shippingService.config.features.realTimeLocation | quote }}
+            - name: DEFAULT_ORIGIN_COMPANY
+              value: "NexusCommerce Warehouse"
+            - name: DEFAULT_ORIGIN_ADDRESS
+              value: "123 Warehouse St"
+            - name: DEFAULT_ORIGIN_CITY
+              value: "Distribution City"
+            - name: DEFAULT_ORIGIN_STATE
+              value: "DC"
+            - name: DEFAULT_ORIGIN_POSTAL
+              value: "12345"
+            - name: DEFAULT_ORIGIN_COUNTRY
+              value: "USA"
+
+            # Security Configuration
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.shippingService.name }}-secrets
+                  key: jwt-secret
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.shippingService.name }}-secrets
+                  key: encryption-key
+
+            # Monitoring and Logging
+            - name: LOG_LEVEL
+              value: "info"
+            - name: LOG_FORMAT
+              value: "json"
+            - name: ENABLE_METRICS
+              value: "true"
+            - name: ENABLE_HEALTH_CHECK
+              value: "true"
+
+            # Rate Limiting and Security
+            - name: ENABLE_RATE_LIMITING
+              value: "true"
+            - name: ENABLE_CIRCUIT_BREAKER
+              value: "true"
+            - name: ENABLE_CORS
+              value: "true"
+
+            # Kafka topics for shipping events
+            - name: KAFKA_SHIPPING_CREATED_TOPIC
+              value: "shipping-created"
+            - name: KAFKA_SHIPPING_UPDATED_TOPIC
+              value: "shipping-updated"
+            - name: KAFKA_SHIPPING_STATUS_CHANGED_TOPIC
+              value: "shipping-status-changed"
+            - name: KAFKA_SHIPPING_DELETED_TOPIC
+              value: "shipping-deleted"
+            - name: KAFKA_TRACKING_CREATED_TOPIC
+              value: "tracking-created"
+            - name: KAFKA_TRACKING_UPDATED_TOPIC
+              value: "tracking-updated"
+            - name: KAFKA_TRACKING_DELETED_TOPIC
+              value: "tracking-deleted"
+
+            # ELK Stack Configuration
+            - name: ENABLE_ELK_LOGGING
+              value: "true"
+            - name: ENABLE_KAFKA_LOGGING
+              value: "true"
+            - name: ELK_KAFKA_TOPIC
+              value: "app-logs"
+
+            # Set IP address for Eureka registration
+            - name: SERVICE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+          resources:
+            {{- toYaml .Values.shippingService.resources | nindent 12 }}
+
+          # Health Checks for Go Application
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.shippingService.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.shippingService.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.shippingService.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+            successThreshold: 1
+
+          # Security Context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534  # nobody user
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Volume Mounts
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+              readOnly: true
+            - name: logs-volume
+              mountPath: /app/logs
+            - name: tmp-volume
+              mountPath: /tmp
+
+      # Volumes
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.shippingService.name }}-config
+        - name: logs-volume
+        emptyDir: {}
+        - name: tmp-volume
+          emptyDir: {}
+
+      # Init Containers for Dependencies
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for PostgreSQL..."
+              timeout=300
+              count=0
+              until nc -z {{ .Values.shippingService.config.database.service }} {{ .Values.global.data.postgresql.port }} || [ $count -eq $timeout ]; do 
+                echo "PostgreSQL not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "PostgreSQL wait timeout reached!"
+                exit 1
+              fi
+              echo "PostgreSQL is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              timeout=300
+              count=0
+              until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092 || [ $count -eq $timeout ]; do 
+                echo "Kafka not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Kafka wait timeout reached!"
+                exit 1
+              fi
+              echo "Kafka is ready!"
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Eureka..."
+              timeout=300
+              count=0
+              until nc -z eureka-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8761 || [ $count -eq $timeout ]; do 
+                echo "Eureka not ready, waiting... ($count/$timeout)"
+                sleep 5
+                count=$((count+5))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Eureka wait timeout reached!"
+                exit 1
+              fi
+              echo "Eureka is ready!"
+
+      # Security and Scheduling
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+
+      # Service Account (for RBAC if needed)
+      serviceAccountName: {{ .Values.security.rbac.serviceAccountName | default "default" }}
+
+      # Restart Policy
+      restartPolicy: Always
+
+      # DNS Policy
+      dnsPolicy: ClusterFirst
+
+      # Termination Grace Period
+      terminationGracePeriodSeconds: 30
+  {{- end }}
+
+---
+  {{- if .Values.shippingService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.shippingService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.shippingservice.labels" . | nindent 4 }}
+    app: {{ .Values.shippingService.name }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ .Values.shippingService.service.port | quote }}
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app: {{ .Values.shippingService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.shippingService.service.port }}
+      targetPort: {{ .Values.shippingService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.shippingService.service.type "NodePort") .Values.shippingService.service.nodePort }}
+      nodePort: {{ .Values.shippingService.service.nodePort }}
+      {{- end }}
+    - name: metrics
+      port: 9090
+      targetPort: {{ .Values.shippingService.service.port }}
+      protocol: TCP
+  type: {{ .Values.shippingService.service.type }}
+  {{- end }}
+
+---
+  {{- if .Values.shippingService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.shippingService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.shippingservice.labels" . | nindent 4 }}
+    app: {{ .Values.shippingService.name }}
+type: Opaque
+data:
+  db-username: {{ .Values.shippingService.secrets.dbUsername | b64enc }}
+  db-password: {{ .Values.shippingService.secrets.dbPassword | b64enc }}
+  jwt-secret: {{ .Values.shippingService.secrets.jwtSecret | b64enc }}
+  encryption-key: {{ .Values.shippingService.secrets.encryptionKey | b64enc }}
+  {{- end }}
+
+---
+  {{- if .Values.shippingService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.shippingService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.shippingservice.labels" . | nindent 4 }}
+    app: {{ .Values.shippingService.name }}
+data:
+  # Server settings
+  SERVER_PORT: {{ .Values.shippingService.service.port | quote }}
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+
+  # Database settings
+  DB_HOST: {{ .Values.shippingService.config.database.service | quote }}
+  DB_PORT: {{ .Values.global.data.postgresql.port | quote }}
+  DB_NAME: {{ .Values.shippingService.config.database.name | quote }}
+
+  # Enhanced features
+  ENABLE_GPS_TRACKING: {{ .Values.shippingService.config.features.gpsTracking | quote }}
+  ENABLE_REAL_TIME_LOCATION: {{ .Values.shippingService.config.features.realTimeLocation | quote }}
+
+  # Eureka settings
+  EUREKA_PREFER_IP_ADDRESS: "true"
+  EUREKA_INSTANCE_HOSTNAME: {{ .Values.shippingService.name | quote }}
+  EUREKA_INSTANCE_ID: "shipping-service:{{ .Values.shippingService.service.port }}"
+  EUREKA_URL: {{ .Values.global.infrastructure.eureka.url | quote }}
+
+  # Kafka settings
+  KAFKA_BROKERS: {{ .Values.global.data.kafka.brokers | quote }}
+  KAFKA_CONSUMER_GROUP: "shipping-service-group"
+
+  # Logging Configuration
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # Service Information
+  SERVICE_VERSION: "2.0.0"
+  SERVICE_NAME: "shipping-service"
+
+  # Performance Monitoring
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+  # Go Runtime settings
+  GOOS: "linux"
+  GOARCH: "amd64"
+  GIN_MODE: "release"
+
+  # Application name for Eureka
+  APP_NAME: "SHIPPING-SERVICE"
+  HOST_NAME: {{ .Values.shippingService.name | quote }}
+  {{- end }}
