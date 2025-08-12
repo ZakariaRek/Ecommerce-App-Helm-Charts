@@ -1,0 +1,392 @@
+{{- if .Values.paymentService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.paymentService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: {{ .Values.paymentService.name }}
+spec:
+  replicas: {{ .Values.paymentService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.paymentService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.paymentservice.labels" . | nindent 8 }}
+        app: {{ .Values.paymentService.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.paymentService.service.port | quote }}
+        prometheus.io/path: "/metrics"
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: payment-service
+          image: "{{ .Values.paymentService.image.repository }}:{{ .Values.paymentService.image.tag }}"
+          imagePullPolicy: {{ .Values.paymentService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.paymentService.service.port }}
+              name: http
+              protocol: TCP
+          env:
+            # Go Application Settings
+            - name: PORT
+              value: {{ .Values.paymentService.service.port | quote }}
+            - name: GIN_MODE
+              value: "release"
+            - name: GOOS
+              value: "linux"
+            - name: GOARCH
+              value: "amd64"
+            
+            # Service Configuration
+            - name: SERVICE_NAME
+              value: "payment-service"
+            - name: SERVICE_VERSION
+              value: "1.0.0"
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment | quote }}
+            
+            # Database Configuration
+            - name: DB_HOST
+              value: {{ .Values.paymentService.config.database.service | quote }}
+            - name: DB_PORT
+              value: {{ .Values.global.data.postgresql.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.paymentService.config.database.name | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: db-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: db-password
+            - name: DB_SSLMODE
+              value: "disable"
+            - name: DB_MAX_OPEN_CONNS
+              value: "25"
+            - name: DB_MAX_IDLE_CONNS
+              value: "5"
+            
+            # Redis Configuration
+            - name: REDIS_HOST
+              value: {{ .Values.global.data.redis.host | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.global.data.redis.port | quote }}
+            - name: REDIS_DB
+              value: {{ .Values.paymentService.config.database.redisDatabase | quote }}
+            - name: REDIS_PASSWORD
+              value: ""
+            
+            # Kafka Configuration
+            - name: KAFKA_BROKERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: KAFKA_CONSUMER_GROUP
+              value: "payment-service-group"
+            
+            # Payment Provider Configuration
+            - name: STRIPE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: stripe-api-key
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: stripe-webhook-secret
+            {{- if .Values.paymentService.config.features.paypal }}
+            - name: PAYPAL_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: paypal-client-id
+                  optional: true
+            - name: PAYPAL_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: paypal-client-secret
+                  optional: true
+            {{- end }}
+            
+            # Security Configuration
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: jwt-secret
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.paymentService.name }}-secrets
+                  key: encryption-key
+            
+            # Service Discovery
+            - name: EUREKA_URL
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: INSTANCE_ID
+              value: "payment-service:{{ .Values.paymentService.service.port }}"
+            
+            # Feature Flags
+            - name: ENABLE_STRIPE
+              value: {{ .Values.paymentService.config.features.stripe | quote }}
+            - name: ENABLE_PAYPAL
+              value: {{ .Values.paymentService.config.features.paypal | quote }}
+            - name: ENABLE_REFUNDS
+              value: {{ .Values.paymentService.config.features.refunds | quote }}
+            - name: ENABLE_RECURRING_PAYMENTS
+              value: "true"
+            - name: ENABLE_WEBHOOKS
+              value: {{ .Values.paymentService.config.features.webhooks | quote }}
+            
+            # Monitoring and Logging
+            - name: LOG_LEVEL
+              value: "info"
+            - name: LOG_FORMAT
+              value: "json"
+            - name: ENABLE_METRICS
+              value: "true"
+            - name: ENABLE_HEALTH_CHECK
+              value: "true"
+            
+            # Rate Limiting and Security
+            - name: ENABLE_RATE_LIMITING
+              value: "true"
+            - name: ENABLE_CIRCUIT_BREAKER
+              value: "true"
+            - name: ENABLE_CORS
+              value: "true"
+            
+            # Payment Processing Limits
+            - name: MAX_PAYMENT_AMOUNT
+              value: {{ .Values.paymentService.config.security.maxPaymentAmount | quote }}
+            - name: MIN_PAYMENT_AMOUNT
+              value: {{ .Values.paymentService.config.security.minPaymentAmount | quote }}
+            - name: DEFAULT_CURRENCY
+              value: {{ .Values.paymentService.config.security.defaultCurrency | quote }}
+          
+          resources:
+            {{- toYaml .Values.paymentService.resources | nindent 12 }}
+          
+          # Health Checks for Go Application
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.paymentService.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+          
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: {{ .Values.paymentService.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.paymentService.service.port }}
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+            successThreshold: 1
+          
+          # Security Context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534  # nobody user
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          
+          # Volume Mounts
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+              readOnly: true
+            - name: logs-volume
+              mountPath: /app/logs
+            - name: tmp-volume
+              mountPath: /tmp
+      
+      # Volumes
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.paymentService.name }}-config
+        - name: logs-volume
+          emptyDir: {}
+        - name: tmp-volume
+          emptyDir: {}
+      
+      # Init Containers for Dependencies
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z {{ .Values.paymentService.config.database.service }} {{ .Values.global.data.postgresql.port }}; do echo waiting for postgres; sleep 2; done;']
+        - name: wait-for-redis
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z {{ .Values.global.data.redis.host }} {{ .Values.global.data.redis.port }}; do echo waiting for redis; sleep 2; done;']
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092; do echo waiting for kafka; sleep 2; done;']
+      
+      # Security and Scheduling
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      
+      # Service Account (for RBAC if needed)
+      serviceAccountName: default
+      
+      # Restart Policy
+      restartPolicy: Always
+      
+      # DNS Policy
+      dnsPolicy: ClusterFirst
+      
+      # Termination Grace Period
+      terminationGracePeriodSeconds: 30
+{{- end }}
+
+---
+{{- if .Values.paymentService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.paymentService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: {{ .Values.paymentService.name }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ .Values.paymentService.service.port | quote }}
+    prometheus.io/path: "/metrics"
+    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
+    service.beta.kubernetes.io/do-loadbalancer-tls-ports: "443"
+spec:
+  selector:
+    app: {{ .Values.paymentService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.paymentService.service.port }}
+      targetPort: {{ .Values.paymentService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.paymentService.service.type "NodePort") .Values.paymentService.service.nodePort }}
+      nodePort: {{ .Values.paymentService.service.nodePort }}
+      {{- end }}
+    - name: metrics
+      port: 9090
+      targetPort: {{ .Values.paymentService.service.port }}
+      protocol: TCP
+  type: {{ .Values.paymentService.service.type }}
+  # Session affinity for payment processing
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300  # 5 minutes
+{{- end }}
+
+---
+{{- if .Values.paymentService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.paymentService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: {{ .Values.paymentService.name }}
+type: Opaque
+data:
+  db-username: {{ .Values.paymentService.secrets.dbUsername | b64enc }}
+  db-password: {{ .Values.paymentService.secrets.dbPassword | b64enc }}
+  stripe-api-key: {{ .Values.paymentService.secrets.stripeApiKey | b64enc }}
+  stripe-webhook-secret: {{ .Values.paymentService.secrets.stripeWebhookSecret | b64enc }}
+  jwt-secret: {{ .Values.paymentService.secrets.jwtSecret | b64enc }}
+  encryption-key: {{ .Values.paymentService.secrets.encryptionKey | b64enc }}
+{{- end }}
+
+---
+{{- if .Values.paymentService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.paymentService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.paymentservice.labels" . | nindent 4 }}
+    app: {{ .Values.paymentService.name }}
+data:
+  # Server settings
+  SERVER_PORT: {{ .Values.paymentService.service.port | quote }}
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+
+  # Database settings
+  DB_HOST: {{ .Values.paymentService.config.database.service | quote }}
+  DB_PORT: {{ .Values.global.data.postgresql.port | quote }}
+  DB_NAME: {{ .Values.paymentService.config.database.name | quote }}
+
+  # Enhanced features
+  ENABLE_STRIPE: {{ .Values.paymentService.config.features.stripe | quote }}
+  ENABLE_PAYPAL: {{ .Values.paymentService.config.features.paypal | quote }}
+  ENABLE_REFUNDS: {{ .Values.paymentService.config.features.refunds | quote }}
+  ENABLE_WEBHOOKS: {{ .Values.paymentService.config.features.webhooks | quote }}
+
+  # Eureka settings
+  EUREKA_PREFER_IP_ADDRESS: "true"
+  EUREKA_INSTANCE_HOSTNAME: {{ .Values.paymentService.name | quote }}
+  EUREKA_INSTANCE_ID: "payment-service:{{ .Values.paymentService.service.port }}"
+  EUREKA_URL: {{ .Values.global.infrastructure.eureka.url | quote }}
+
+  # Kafka settings
+  KAFKA_BROKERS: {{ .Values.global.data.kafka.brokers | quote }}
+  KAFKA_CONSUMER_GROUP: "payment-service-group"
+
+  # Logging Configuration
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # Security Configuration
+  MAX_PAYMENT_AMOUNT: {{ .Values.paymentService.config.security.maxPaymentAmount | quote }}
+  MIN_PAYMENT_AMOUNT: {{ .Values.paymentService.config.security.minPaymentAmount | quote }}
+  DEFAULT_CURRENCY: {{ .Values.paymentService.config.security.defaultCurrency | quote }}
+
+  # Service Information
+  SERVICE_VERSION: "1.0.0"
+  SERVICE_NAME: "payment-service"
+
+  # Performance Monitoring
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+  # Go Runtime settings
+  GOOS: "linux"
+  GOARCH: "amd64"
+  GIN_MODE: "release"
+{{- end }}

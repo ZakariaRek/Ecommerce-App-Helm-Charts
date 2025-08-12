@@ -1,0 +1,31 @@
+apiVersion: v2
+name: nexus-microservices
+description: A Helm chart for NexusCommerce Microservices Stack
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+keywords:
+  - microservices
+  - user-service
+  - product-service
+  - cart-service
+  - order-service
+  - payment-service
+  - notification-service
+  - loyalty-service
+  - shipping-service
+
+maintainers:
+  - name: NexusCommerce Team
+    email: team@nexuscommerce.com
+
+dependencies:
+  - name: nexus-infrastructure
+    version: "0.1.0"
+    condition: infrastructure.enabled
+    repository: "file://../nexus-infrastructure"
+  - name: nexus-database
+    version: "0.1.0" 
+    condition: database.enabled
+    repository: "file://../nexus-database"

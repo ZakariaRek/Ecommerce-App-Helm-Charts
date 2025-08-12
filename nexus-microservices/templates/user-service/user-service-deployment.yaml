@@ -1,0 +1,191 @@
+{{- if .Values.userService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.userService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.userservice.labels" . | nindent 4 }}
+    app: {{ .Values.userService.name }}
+spec:
+  replicas: {{ .Values.userService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.userService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.userservice.labels" . | nindent 8 }}
+        app: {{ .Values.userService.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: user-service
+          image: "{{ .Values.userService.image.repository }}:{{ .Values.userService.image.tag }}"
+          imagePullPolicy: {{ .Values.userService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.userService.service.port }}
+              name: http
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1536m -Xms1024m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.userService.config.profiles.active | quote }}
+            - name: SPRING_APPLICATION_NAME
+              value: "user-service"
+            - name: SERVER_PORT
+              value: {{ .Values.userService.service.port | quote }}
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: {{ .Values.userService.config.contextPath | quote }}
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: {{ .Values.userService.name | quote }}
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: {{ .Values.global.infrastructure.configServer.url | quote }}
+            # MongoDB Configuration
+            - name: SPRING_DATA_MONGODB_HOST
+              value: "user-mongodb-headless.{{ .Values.global.data.namespace }}.svc.cluster.local"
+            - name: SPRING_DATA_MONGODB_PORT
+              value: {{ .Values.global.data.mongodb.port | quote }}
+            - name: SPRING_DATA_MONGODB_DATABASE
+              value: {{ .Values.userService.config.database.name | quote }}
+            - name: SPRING_DATA_MONGODB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.userService.name }}-secrets
+                  key: mongodb-username
+            - name: SPRING_DATA_MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.userService.name }}-secrets
+                  key: mongodb-password
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://$(SPRING_DATA_MONGODB_USERNAME):$(SPRING_DATA_MONGODB_PASSWORD)@user-mongodb-headless.{{ .Values.global.data.namespace }}.svc.cluster.local:{{ .Values.global.data.mongodb.port }}/{{ .Values.userService.config.database.name }}?authSource=admin&connectTimeoutMS=30000&socketTimeoutMS=30000&serverSelectionTimeoutMS=30000"
+            # Kafka Configuration
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "user-service-group"
+            # JWT Configuration
+            - name: USER_SERVICE_APP_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.userService.name }}-secrets
+                  key: jwt-secret
+            - name: USER_SERVICE_APP_JWT_EXPIRATION_MS
+              value: {{ .Values.userService.config.jwt.expirationMs | quote }}
+          resources:
+            {{- toYaml .Values.userService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.userService.config.contextPath }}/actuator/health
+              port: {{ .Values.userService.service.port }}
+            initialDelaySeconds: 300
+            periodSeconds: 60
+            timeoutSeconds: 20
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.userService.config.contextPath }}/actuator/health/readiness
+              port: {{ .Values.userService.service.port }}
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 10
+          startupProbe:
+            httpGet:
+              path: {{ .Values.userService.config.contextPath }}/actuator/health
+              port: {{ .Values.userService.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 40
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.userService.name }}-config
+        - name: tmp-volume
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-mongodb
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for User MongoDB..."
+              timeout=300
+              count=0
+              until nc -z user-mongodb-headless.{{ .Values.global.data.namespace }}.svc.cluster.local {{ .Values.global.data.mongodb.port }} || [ $count -eq $timeout ]; do 
+                echo "MongoDB not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "MongoDB wait timeout reached!"
+                exit 1
+              fi
+              echo "User MongoDB is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              timeout=300
+              count=0
+              until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092 || [ $count -eq $timeout ]; do 
+                echo "Kafka not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Kafka wait timeout reached!"
+                exit 1
+              fi
+              echo "Kafka is ready!"
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Eureka..."
+              timeout=300
+              count=0
+              until nc -z eureka-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8761 || [ $count -eq $timeout ]; do 
+                echo "Eureka not ready, waiting... ($count/$timeout)"
+                sleep 5
+                count=$((count+5))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Eureka wait timeout reached!"
+                exit 1
+              fi
+              echo "Eureka is ready!"
+        - name: wait-for-config-server
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Config Server..."
+              timeout=300
+              count=0
+              until nc -z config-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8888 || [ $count -eq $timeout ]; do 
+                echo "Config Server not ready, waiting... ($count/$timeout)"
+                sleep 3
+                count=$((count+3))
+              done
+              if [ $count -eq $timeout ]; then
+                echo "Config Server wait timeout reached!"
+                exit 1
+              fi
+              echo "Config Server is ready!"
+{{- end }}

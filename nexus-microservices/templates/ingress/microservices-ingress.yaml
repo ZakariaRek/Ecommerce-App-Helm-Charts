@@ -1,0 +1,324 @@
+{{- if .Values.networking.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nexus-microservices-ingress
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-ingress
+  annotations:
+    {{- with .Values.networking.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.networking.ingress.className }}
+  rules:
+    {{- range .Values.networking.ingress.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .service }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+
+---
+{{- if and .Values.networking.ingress.enabled (eq .Values.global.environment "dev") }}
+# Development-specific ingress for individual service access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nexus-microservices-dev-ingress
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-dev-ingress
+    environment: dev
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: {{ .Values.networking.ingress.className }}
+  rules:
+    # User Service
+    {{- if .Values.userService.enabled }}
+    - host: user-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.userService.name }}
+                port:
+                  number: {{ .Values.userService.service.port }}
+          - path: /api/users
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.userService.name }}
+                port:
+                  number: {{ .Values.userService.service.port }}
+    {{- end }}
+
+    # Product Service
+    {{- if .Values.productService.enabled }}
+    - host: product-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.productService.name }}
+                port:
+                  number: {{ .Values.productService.service.port }}
+          - path: /api/products
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.productService.name }}
+                port:
+                  number: {{ .Values.productService.service.port }}
+    {{- end }}
+
+    # Cart Service
+    {{- if .Values.cartService.enabled }}
+    - host: cart-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.cartService.name }}
+                port:
+                  number: {{ .Values.cartService.service.port }}
+          - path: /api/carts
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.cartService.name }}
+                port:
+                  number: {{ .Values.cartService.service.port }}
+    {{- end }}
+
+    # Order Service
+    {{- if .Values.orderService.enabled }}
+    - host: order-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.orderService.name }}
+                port:
+                  number: {{ .Values.orderService.service.port }}
+          - path: /api/orders
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.orderService.name }}
+                port:
+                  number: {{ .Values.orderService.service.port }}
+    {{- end }}
+
+    # Payment Service
+    {{- if .Values.paymentService.enabled }}
+    - host: payment-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.paymentService.name }}
+                port:
+                  number: {{ .Values.paymentService.service.port }}
+          - path: /api/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.paymentService.name }}
+                port:
+                  number: {{ .Values.paymentService.service.port }}
+    {{- end }}
+
+    # Notification Service
+    {{- if .Values.notificationService.enabled }}
+    - host: notification-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.notificationService.name }}
+                port:
+                  number: {{ .Values.notificationService.service.port }}
+          - path: /api/notifications
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.notificationService.name }}
+                port:
+                  number: {{ .Values.notificationService.service.port }}
+          - path: /sse
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.notificationService.name }}
+                port:
+                  number: {{ .Values.notificationService.service.port }}
+    {{- end }}
+
+    # Loyalty Service
+    {{- if .Values.loyaltyService.enabled }}
+    - host: loyalty-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.loyaltyService.name }}
+                port:
+                  number: {{ .Values.loyaltyService.service.port }}
+          - path: /api/loyalty
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.loyaltyService.name }}
+                port:
+                  number: {{ .Values.loyaltyService.service.port }}
+    {{- end }}
+
+    # Shipping Service
+    {{- if .Values.shippingService.enabled }}
+    - host: shipping-dev.nexus-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.shippingService.name }}
+                port:
+                  number: {{ .Values.shippingService.service.port }}
+          - path: /api/shipping
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.shippingService.name }}
+                port:
+                  number: {{ .Values.shippingService.service.port }}
+    {{- end }}
+{{- end }}
+
+---
+{{- if and .Values.networking.ingress.enabled .Values.monitoring.enabled }}
+# Health check ingress for monitoring
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nexus-microservices-health-ingress
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.labels" . | nindent 4 }}
+    app: microservices-health-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /actuator/health
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: {{ .Values.networking.ingress.className }}
+  rules:
+    - host: health.microservices.nexus-commerce.local
+      http:
+        paths:
+          {{- if .Values.userService.enabled }}
+          - path: /user
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.userService.name }}
+                port:
+                  number: {{ .Values.userService.service.port }}
+          {{- end }}
+          {{- if .Values.productService.enabled }}
+          - path: /product
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.productService.name }}
+                port:
+                  number: {{ .Values.productService.service.port }}
+          {{- end }}
+          {{- if .Values.cartService.enabled }}
+          - path: /cart
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.cartService.name }}
+                port:
+                  number: {{ .Values.cartService.service.port }}
+          {{- end }}
+          {{- if .Values.orderService.enabled }}
+          - path: /order
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.orderService.name }}
+                port:
+                  number: {{ .Values.orderService.service.port }}
+          {{- end }}
+          {{- if .Values.paymentService.enabled }}
+          - path: /payment
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.paymentService.name }}
+                port:
+                  number: {{ .Values.paymentService.service.port }}
+          {{- end }}
+          {{- if .Values.notificationService.enabled }}
+          - path: /notification
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.notificationService.name }}
+                port:
+                  number: {{ .Values.notificationService.service.port }}
+          {{- end }}
+          {{- if .Values.loyaltyService.enabled }}
+          - path: /loyalty
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.loyaltyService.name }}
+                port:
+                  number: {{ .Values.loyaltyService.service.port }}
+          {{- end }}
+          {{- if .Values.shippingService.enabled }}
+          - path: /shipping
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.shippingService.name }}
+                port:
+                  number: {{ .Values.shippingService.service.port }}
+          {{- end }}
+{{- end }}

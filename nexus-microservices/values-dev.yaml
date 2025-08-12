@@ -1,0 +1,302 @@
+global:
+  namespace: microservices
+  environment: development
+  storageClass: standard
+  nodeSelector:
+    node-role: microservices
+
+  # Reduced resources for development
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# User Service Configuration for Development
+userService:
+  enabled: true
+  replicas: 1  # Single replica for dev
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: NodePort  # NodePort for direct access
+    nodePort: 30081
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+
+# Product Service Configuration for Development
+productService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: NodePort
+    nodePort: 30082
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+
+# Cart Service Configuration for Development
+cartService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: NodePort
+    nodePort: 30083
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    database:
+      name: "cartdb_dev"
+    sessionTimeout: 3600  # Longer timeout for dev
+    cacheTimeout: 300     # Shorter cache for dev
+
+# Order Service Configuration for Development
+orderService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: NodePort
+    nodePort: 30084
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    database:
+      name: "orderdb_dev"
+
+# Payment Service Configuration for Development
+paymentService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: NodePort
+    nodePort: 30085
+
+  config:
+    database:
+      name: "paymentdb_dev"
+    features:
+      stripe: true
+      paypal: false  # Disabled for dev
+      refunds: true
+      webhooks: false  # Disabled for dev
+
+# Notification Service Configuration for Development
+notificationService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: NodePort
+    nodePort: 30086
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    database:
+      name: "notificationdb_dev"
+    features:
+      sms: false
+      push: false
+      websocket: true  # Enabled for dev testing
+      email: true
+
+# Loyalty Service Configuration for Development
+loyaltyService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: NodePort
+    nodePort: 30087
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    database:
+      name: "loyalty-service-dev"
+
+# Shipping Service Configuration for Development
+shippingService:
+  enabled: true
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+  service:
+    type: NodePort
+    nodePort: 30088
+
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    database:
+      name: "shippingdb_dev"
+    features:
+      gpsTracking: true
+      realTimeLocation: true
+
+# Networking and Ingress for Development
+networking:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"  # No SSL for dev
+    hosts:
+      - host: microservices-dev.nexus-commerce.local
+        paths:
+          - path: /api/users
+            service: user-service
+            port: 8081
+          - path: /api/products
+            service: product-service
+            port: 8082
+          - path: /api/carts
+            service: cart-service
+            port: 8082
+          - path: /api/orders
+            service: order-service
+            port: 8082
+          - path: /api/payments
+            service: payment-service
+            port: 8084
+          - path: /api/notifications
+            service: notification-service
+            port: 8086
+          - path: /api/loyalty
+            service: loyalty-service
+            port: 8084
+          - path: /api/shipping
+            service: shipping-service
+            port: 8085
+      # Additional dev-friendly hosts
+      - host: user-dev.nexus-commerce.local
+        paths:
+          - path: /
+            service: user-service
+            port: 8081
+      - host: product-dev.nexus-commerce.local
+        paths:
+          - path: /
+            service: product-service
+            port: 8082
+      - host: cart-dev.nexus-commerce.local
+        paths:
+          - path: /
+            service: cart-service
+            port: 8082
+
+# Monitoring Configuration for Development
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: false  # Disabled for dev
+  healthChecks:
+    enabled: true
+
+# Security Configuration for Development
+security:
+  enabled: false  # Relaxed security for dev
+  networkPolicies:
+    enabled: false
+  podSecurityPolicy:
+    enabled: false
+
+# Autoscaling disabled for development
+autoscaling:
+  enabled: false
+
+# Development-specific features
+development:
+  debugMode: true
+  logLevel: DEBUG
+  enableRequestLogging: true
+  enableSqlLogging: true
+  enableDetailedMetrics: true
+
+  # Development tools
+  tools:
+    swagger:
+      enabled: true
+    actuator:
+      enabled: true
+      exposeAll: true
