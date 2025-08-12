@@ -1,0 +1,91 @@
+{{- if .Values.kafkaUI.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.kafkaUI.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-tools.kafkaui.labels" . | nindent 4 }}
+    app: {{ .Values.kafkaUI.name }}
+  annotations:
+    {{- include "nexus-tools.annotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.kafkaUI.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.kafkaUI.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-tools.kafkaui.labels" . | nindent 8 }}
+        app: {{ .Values.kafkaUI.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "nexus-tools.securityContext" . | nindent 8 }}
+      containers:
+        - name: kafka-ui
+          image: "{{ .Values.kafkaUI.image.repository }}:{{ .Values.kafkaUI.image.tag }}"
+          imagePullPolicy: {{ .Values.kafkaUI.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.kafkaUI.service.port }}
+              name: http
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: "nexus-commerce-kafka"
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: {{ .Values.kafkaUI.config.kafka.bootstrapServers }}
+            - name: KAFKA_CLUSTERS_0_ZOOKEEPER
+              value: {{ .Values.kafkaUI.config.kafka.zookeeper }}
+            - name: KAFKA_CLUSTERS_0_READONLY
+              value: "false"
+            - name: KAFKA_CLUSTERS_0_METRICS_PORT
+              value: "9997"
+            - name: KAFKA_CLUSTERS_0_METRICS_TYPE
+              value: "JMX"
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: "/"
+            - name: LOGGING_LEVEL_ROOT
+              value: "INFO"
+            - name: LOGGING_LEVEL_COM_PROVECTUS
+              value: "INFO"
+          volumeMounts:
+            - name: kafka-ui-config
+              mountPath: /app/config.yml
+              subPath: config.yml
+          {{- if .Values.kafkaUI.resources }}
+          {{- include "nexus-tools.resources" .Values.kafkaUI.resources | nindent 10 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.kafkaUI.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.kafkaUI.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.kafkaUI.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: kafka-ui-config
+          configMap:
+            name: {{ .Values.kafkaUI.name }}-config
+      restartPolicy: Always
+{{- end }}

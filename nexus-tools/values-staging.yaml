@@ -1,0 +1,447 @@
+global:
+  namespace: microservices
+  environment: staging
+  storageClass: standard-ssd
+  nodeSelector:
+    node-role: microservices
+    node-tier: staging
+
+  # Moderate resources for staging
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# User Service Configuration for Staging
+userService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "User-service-staging"
+    jwt:
+      expirationMs: 7200000  # 2 hours for staging
+
+  secrets:
+    jwtSecret: "staging-jwt-secret-replace-with-actual-256-bit-key"
+    mongodbUsername: "userservice_staging"
+    mongodbPassword: "userservice_staging_password"
+
+# Product Service Configuration for Staging
+productService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "productdb_staging"
+      service: "product-postgres-service.data.svc.cluster.local"
+
+  secrets:
+    dbUsername: "productservice_staging"
+    dbPassword: "productservice_staging_password"
+
+# Cart Service Configuration for Staging
+cartService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "cartdb_staging"
+      service: "cart-mongodb-headless.data.svc.cluster.local"
+      redisDatabase: 3
+    sessionTimeout: 2400  # 40 minutes
+    cacheTimeout: 600     # 10 minutes
+
+  secrets:
+    mongodbUsername: "cartservice_staging"
+    mongodbPassword: "cartservice_staging_password"
+
+# Order Service Configuration for Staging
+orderService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "orderdb_staging"
+      service: "postgres-service.data.svc.cluster.local"
+
+  secrets:
+    dbUsername: "orderservice_staging"
+    dbPassword: "orderservice_staging_password"
+
+# Payment Service Configuration for Staging
+paymentService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    database:
+      name: "paymentdb_staging"
+      service: "postgres-service.data.svc.cluster.local"
+      redisDatabase: 4
+    features:
+      stripe: true
+      paypal: false  # Disabled in staging
+      refunds: true
+      webhooks: false  # Disabled in staging
+    security:
+      maxPaymentAmount: "1000.00"  # Lower limit for staging
+      minPaymentAmount: "0.50"
+      defaultCurrency: "USD"
+
+  secrets:
+    dbUsername: "paymentservice_staging"
+    dbPassword: "paymentservice_staging_password"
+    stripeApiKey: "sk_test_staging_stripe_api_key_here"
+    stripeWebhookSecret: "whsec_staging_stripe_webhook_secret"
+    jwtSecret: "staging-payment-jwt-secret"
+    encryptionKey: "32byte-staging-encryption-key-here"
+
+# Notification Service Configuration for Staging
+notificationService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "notificationdb_staging"
+      service: "mongo-service.data.svc.cluster.local"
+      redisDatabase: 3
+    features:
+      sms: false  # Disabled in staging
+      push: false # Disabled in staging
+      websocket: true
+      email: true
+
+  secrets:
+    mailHost: "smtp.gmail.com"
+    mailPort: "587"
+    mailUsername: "staging-notifications@your-domain.com"
+    mailPassword: "staging-app-password"
+    emailFrom: "staging-notifications@your-domain.com"
+
+# Loyalty Service Configuration for Staging
+loyaltyService:
+  enabled: true
+  replicas: 2
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "loyalty-service-staging"
+      service: "loyalty-postgres-service.data.svc.cluster.local"
+    tiers:
+      bronzeThreshold: 0
+      silverThreshold: 250    # Lower thresholds for staging
+      goldThreshold: 1000
+      platinumThreshold: 5000
+      diamondThreshold: 10000
+    points:
+      orderRate: 2.0         # Higher rate for testing
+      reviewPoints: 50
+      signupBonus: 1000
+      firstOrderBonus: 500
+      referralBonus: 2000
+
+  secrets:
+    dbUsername: "loyaltyservice_staging"
+    dbPassword: "loyaltyservice_staging_password"
+
+# Shipping Service Configuration for Staging
+shippingService:
+  enabled: true
+  replicas: 1  # Single replica for staging
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  service:
+    type: ClusterIP
+
+  config:
+    profiles:
+      active: "staging,docker,kafka"
+    database:
+      name: "shippingdb_staging"
+      service: "shipping-postgres-service.data.svc.cluster.local"
+    features:
+      gpsTracking: true
+      realTimeLocation: true
+
+  secrets:
+    dbUsername: "shippingservice_staging"
+    dbPassword: "shippingservice_staging_password"
+    jwtSecret: "staging-shipping-jwt-secret"
+    encryptionKey: "staging-shipping-encryption-key"
+
+# Networking and Ingress for Staging
+networking:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "500"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    hosts:
+      - host: staging-api.nexuscommerce.com
+        paths:
+          - path: /api/users
+            service: user-service
+            port: 8081
+          - path: /api/products
+            service: product-service
+            port: 8082
+          - path: /api/carts
+            service: cart-service
+            port: 8082
+          - path: /api/orders
+            service: order-service
+            port: 8082
+          - path: /api/payments
+            service: payment-service
+            port: 8084
+          - path: /api/notifications
+            service: notification-service
+            port: 8086
+          - path: /api/loyalty
+            service: loyalty-service
+            port: 8084
+          - path: /api/shipping
+            service: shipping-service
+            port: 8085
+    tls:
+      - hosts:
+          - staging-api.nexuscommerce.com
+        secretName: nexus-staging-api-tls
+
+# Service Mesh Configuration
+serviceMesh:
+  enabled: true
+  istio:
+    enabled: true
+    sidecarInjection: true
+    mTLS:
+      enabled: false  # Disabled for staging simplicity
+
+# Monitoring Configuration for Staging
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+    retention: "7d"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: "5Gi"
+  healthChecks:
+    enabled: true
+    timeout: 15
+    interval: 30
+
+# Security Configuration for Staging
+security:
+  enabled: true
+  networkPolicies:
+    enabled: false  # Disabled for easier testing
+  podSecurityPolicy:
+    enabled: false  # Disabled for easier testing
+  rbac:
+    enabled: true
+    serviceAccountName: "nexus-microservices-staging"
+
+# Autoscaling Configuration for Staging
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# High Availability Configuration (Relaxed for staging)
+highAvailability:
+  enabled: false
+  podDisruptionBudget:
+    enabled: false
+  topologySpreadConstraints:
+    enabled: false
+
+# Staging-specific features
+staging:
+  debugMode: false
+  logLevel: INFO
+  enableRequestLogging: false
+  enableDetailedMetrics: true
+  
+  # Testing features
+  testing:
+    enabled: true
+    mockExternalServices: true
+    loadTesting:
+      enabled: true
+      duration: "5m"
+      concurrency: 10
+  
+  # Data refresh
+  dataRefresh:
+    enabled: true
+    schedule: "0 6 * * *"  # Daily at 6 AM
+    
+  # Performance testing
+  performance:
+    enabled: true
+    benchmarking: true
+    profiling: false
+
+# External Services Configuration (Staging)
+externalServices:
+  database:
+    ssl:
+      enabled: false  # Simplified for staging
+    connectionPool:
+      maxConnections: 50
+      minConnections: 5
+  redis:
+    ssl:
+      enabled: false
+    cluster:
+      enabled: false
+  kafka:
+    ssl:
+      enabled: false
+    authentication:
+      enabled: false
+
+# Resource Quotas (More lenient for staging)
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "10"
+    requests.memory: "20Gi"
+    limits.cpu: "20"
+    limits.memory: "40Gi"
+    persistentvolumeclaims: "10"
+    services: "15"
+    secrets: "30"
+    configmaps: "30"
+
+# Backup Configuration (Reduced for staging)
+backup:
+  enabled: true
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM
+  retention: "7d"
+  storage:
+    size: "50Gi"
+    storageClass: "standard"
