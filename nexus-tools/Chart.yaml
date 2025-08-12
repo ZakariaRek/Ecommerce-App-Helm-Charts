@@ -1,1 +1,22 @@
-tools
+apiVersion: v2
+name: nexus-tools
+description: A Helm chart for NexusCommerce Tools Stack including monitoring, observability, and management tools
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+keywords:
+  - tools
+#  - monitoring
+#  - observability
+  - kafka-ui
+#  - prometheus
+#  - grafana
+#  - swagger-ui
+#  - adminer
+
+maintainers:
+  - name: NexusCommerce Team
+    email: team@nexuscommerce.com
+
+dependencies: []
