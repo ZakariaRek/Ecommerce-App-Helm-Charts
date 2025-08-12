@@ -282,7 +282,6 @@ notificationService:
     mailUsername: "notifications@nexuscommerce.com"
     mailPassword: "your-app-password"
     emailFrom: "notifications@nexuscommerce.com"
-
 # Loyalty Service Configuration
 loyaltyService:
   enabled: true
@@ -423,9 +422,23 @@ monitoring:
     enabled: true
     serviceMonitor:
       enabled: true
+    retention: "15d"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  grafana:
+    enabled: false  # Set to true if you want Grafana dashboards
+    persistence:
+      enabled: false
+      size: "5Gi"
   healthChecks:
     enabled: true
-
+    timeout: 15
+    interval: 30
 # Security Configuration
 security:
   enabled: true
@@ -433,7 +446,17 @@ security:
     enabled: false  # Enable in production
   podSecurityPolicy:
     enabled: false  # Enable in production
+  rbac:
+    enabled: true
+    serviceAccountName: "default"  # or create a custom service account
+    create: false  # Set to true if you want to create a custom service account
+    annotations: {}
 
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
 # Autoscaling Configuration
 autoscaling:
   enabled: false

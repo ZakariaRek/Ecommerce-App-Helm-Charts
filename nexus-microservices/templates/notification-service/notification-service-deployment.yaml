@@ -1,5 +1,5 @@
 # nexus-microservices/templates/notification-service/notification-service-deployment.yaml
-  {{- if .Values.notificationService.enabled }}
+{{- if .Values.notificationService.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -140,7 +140,7 @@ spec:
           configMap:
             name: {{ .Values.notificationService.name }}-config
         - name: logs-volume
-        emptyDir: {}
+          emptyDir: {}
         - name: email-templates
           configMap:
             name: notification-email-templates
@@ -267,12 +267,12 @@ data:
         import: optional:configserver:{{ .Values.global.infrastructure.configServer.url }}
       application:
         name: notification-service
-      
+    
       data:
         mongodb:
           uri: mongodb://{{ .Values.notificationService.config.database.service }}:{{ .Values.global.data.mongodb.port }}/{{ .Values.notificationService.config.database.name }}
           database: {{ .Values.notificationService.config.database.name }}
-        
+    
         redis:
           host: {{ .Values.global.data.redis.host }}
           port: {{ .Values.global.data.redis.port }}
@@ -284,7 +284,7 @@ data:
               max-idle: 8
               min-idle: 0
               max-wait: -1ms
-      
+    
       kafka:
         bootstrap-servers: {{ .Values.global.data.kafka.brokers }}
         producer:
@@ -303,7 +303,7 @@ data:
             spring.json.trusted.packages: "*"
             spring.json.use.type.headers: false
             spring.json.value.default.type: java.lang.Object
-      
+    
       mail:
         host: ${SPRING_MAIL_HOST}
         port: ${SPRING_MAIL_PORT}
@@ -409,6 +409,7 @@ data:
         console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
   {{- end }}
 
+---
   {{- if .Values.notificationService.enabled }}
 apiVersion: v1
 kind: ConfigMap

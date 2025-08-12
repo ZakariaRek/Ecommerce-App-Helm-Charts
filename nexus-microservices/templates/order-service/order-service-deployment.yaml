@@ -1,0 +1,332 @@
+{{- if .Values.orderService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.orderService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.orderservice.labels" . | nindent 4 }}
+    app: {{ .Values.orderService.name }}
+spec:
+  replicas: {{ .Values.orderService.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.orderService.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "nexus-microservices.orderservice.labels" . | nindent 8 }}
+        app: {{ .Values.orderService.name }}
+    spec:
+      {{- if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.global.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: order-service
+          image: "{{ .Values.orderService.image.repository }}:{{ .Values.orderService.image.tag }}"
+          imagePullPolicy: {{ .Values.orderService.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.orderService.service.port }}
+              name: http
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx1536m -Xms512m -XX:MaxMetaspaceSize=256m"
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.orderService.config.profiles.active | quote }}
+            - name: SPRING_APPLICATION_NAME
+              value: "order-service"
+            - name: SERVER_PORT
+              value: {{ .Values.orderService.service.port | quote }}
+            - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+              value: {{ .Values.global.infrastructure.eureka.url | quote }}
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: {{ .Values.orderService.name | quote }}
+            - name: SPRING_CLOUD_CONFIG_URI
+              value: {{ .Values.global.infrastructure.configServer.url | quote }}
+            # PostgreSQL Configuration
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://{{ .Values.orderService.config.database.service }}:{{ .Values.global.data.postgresql.port }}/{{ .Values.orderService.config.database.name }}"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orderService.name }}-secrets
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orderService.name }}-secrets
+                  key: db-password
+            # Redis Configuration
+            - name: SPRING_DATA_REDIS_HOST
+              value: {{ .Values.global.data.redis.host | quote }}
+            - name: SPRING_DATA_REDIS_PORT
+              value: {{ .Values.global.data.redis.port | quote }}
+            - name: SPRING_DATA_REDIS_DATABASE
+              value: {{ .Values.orderService.config.database.redisDatabase | quote }}
+            # Kafka Configuration
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.global.data.kafka.brokers | quote }}
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "order-service-group"
+          resources:
+            {{- toYaml .Values.orderService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.orderService.service.port }}
+            initialDelaySeconds: 180
+            periodSeconds: 45
+            timeoutSeconds: 15
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.orderService.service.port }}
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 8
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.orderService.service.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 30
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+            - name: logs-volume
+              mountPath: /app/logs
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Values.orderService.name }}-config
+        - name: logs-volume
+          emptyDir: {}
+        - name: tmp-volume
+          emptyDir: {}
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for PostgreSQL..."
+              until nc -z {{ .Values.orderService.config.database.service }} {{ .Values.global.data.postgresql.port }}; do 
+                echo "PostgreSQL not ready, waiting..."
+                sleep 3
+              done
+              echo "PostgreSQL is ready!"
+        - name: wait-for-redis
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Redis..."
+              until nc -z {{ .Values.global.data.redis.host }} {{ .Values.global.data.redis.port }}; do 
+                echo "Redis not ready, waiting..."
+                sleep 3
+              done
+              echo "Redis is ready!"
+        - name: wait-for-kafka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Kafka..."
+              until nc -z kafka-service.{{ .Values.global.data.namespace }}.svc.cluster.local 9092; do 
+                echo "Kafka not ready, waiting..."
+                sleep 3
+              done
+              echo "Kafka is ready!"
+        - name: wait-for-eureka
+          image: busybox:1.35
+          command: ['sh', '-c']
+          args:
+            - |
+              echo "Waiting for Eureka..."
+              until nc -z eureka-server.{{ .Values.global.infrastructure.namespace }}.svc.cluster.local 8761; do 
+                echo "Eureka not ready, waiting..."
+                sleep 3
+              done
+              echo "Eureka is ready!"
+  {{- end }}
+
+---
+  {{- if .Values.orderService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.orderService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.orderservice.labels" . | nindent 4 }}
+    app: {{ .Values.orderService.name }}
+spec:
+  selector:
+    app: {{ .Values.orderService.name }}
+  ports:
+    - name: http
+      port: {{ .Values.orderService.service.port }}
+      targetPort: {{ .Values.orderService.service.port }}
+      protocol: TCP
+      {{- if and (eq .Values.orderService.service.type "NodePort") .Values.orderService.service.nodePort }}
+      nodePort: {{ .Values.orderService.service.nodePort }}
+      {{- end }}
+  type: {{ .Values.orderService.service.type }}
+  {{- end }}
+
+---
+  {{- if .Values.orderService.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.orderService.name }}-secrets
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.orderservice.labels" . | nindent 4 }}
+    app: {{ .Values.orderService.name }}
+type: Opaque
+data:
+  db-username: {{ .Values.orderService.secrets.dbUsername | b64enc }}
+  db-password: {{ .Values.orderService.secrets.dbPassword | b64enc }}
+  {{- end }}
+
+---
+  {{- if .Values.orderService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.orderService.name }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "nexus-microservices.orderservice.labels" . | nindent 4 }}
+    app: {{ .Values.orderService.name }}
+data:
+  application.yml: |
+    server:
+      port: {{ .Values.orderService.service.port }}
+      error:
+        include-stacktrace: always
+        include-message: always
+        include-binding-errors: always
+    
+    spring:
+      profiles:
+        active: {{ .Values.orderService.config.profiles.active }}
+      config:
+        import: optional:configserver:{{ .Values.global.infrastructure.configServer.url }}
+      application:
+        name: order-service
+      
+      datasource:
+        url: jdbc:postgresql://{{ .Values.orderService.config.database.service }}:{{ .Values.global.data.postgresql.port }}/{{ .Values.orderService.config.database.name }}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        driver-class-name: org.postgresql.Driver
+      
+      jpa:
+        database-platform: org.hibernate.dialect.PostgreSQLDialect
+        hibernate:
+          ddl-auto: update
+        properties:
+          hibernate:
+            format_sql: true
+            show_sql: false
+        open-in-view: false
+        show-sql: false
+      
+      data:
+        redis:
+          host: {{ .Values.global.data.redis.host }}
+          port: {{ .Values.global.data.redis.port }}
+          timeout: 2000ms
+          database: {{ .Values.orderService.config.database.redisDatabase }}
+          lettuce:
+            pool:
+              max-active: 8
+              max-idle: 8
+              min-idle: 0
+              max-wait: -1ms
+      
+      kafka:
+        bootstrap-servers: {{ .Values.global.data.kafka.brokers }}
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          properties:
+            spring.json.add.type.headers: false
+        consumer:
+          group-id: order-service-group
+          auto-offset-reset: earliest
+          key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+          properties:
+            spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+            spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+            spring.json.trusted.packages: "*"
+            spring.json.use.type.headers: false
+            spring.json.value.default.type: java.lang.Object
+    
+    eureka:
+      instance:
+        preferIpAddress: true
+        instanceId: ${spring.application.name}:${server.port}
+        hostname: {{ .Values.orderService.name }}
+        metadataMap:
+          instanceId: ${spring.application.name}:${server.port}
+      client:
+        registryFetchIntervalSeconds: 5
+        instanceInfoReplicationIntervalSeconds: 5
+        initialInstanceInfoReplicationIntervalSeconds: 5
+        eurekaServiceUrlPollIntervalSeconds: 5
+        registerWithEureka: true
+        fetchRegistry: true
+        serviceUrl:
+          defaultZone: {{ .Values.global.infrastructure.eureka.url }}
+    
+    management:
+      health:
+        db:
+          enabled: true
+        redis:
+          enabled: true
+      endpoint:
+        health:
+          show-details: "ALWAYS"
+          show-components: "ALWAYS"
+        metrics:
+          enabled: true
+      endpoints:
+        web:
+          exposure:
+            include: "*"
+          cors:
+            allowed-origins: "*"
+            allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      metrics:
+        distribution:
+          percentiles-histogram:
+            http.server.requests: true
+          percentiles:
+            http.server.requests: 0.5, 0.95, 0.99
+        tags:
+          application: ${spring.application.name}
+    
+    logging:
+      level:
+        root: INFO
+        com.Ecommerce.Order_Service: INFO
+        org.springframework.web: INFO
+        org.hibernate.SQL: WARN
+        org.hibernate.type.descriptor.sql.BasicBinder: WARN
+        org.springframework.kafka: WARN
+        org.apache.kafka: ERROR
+      pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  {{- end }}
