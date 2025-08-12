@@ -409,7 +409,6 @@ data:
         console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
   {{- end }}
 
----
   {{- if .Values.notificationService.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -429,7 +428,7 @@ data:
     </head>
     <body>
     <h1>Welcome to NexusCommerce!</h1>
-    <p>Hello {{username}},</p>
+    <p>Hello {{ "{{username}}" }},</p>
     <p>Thank you for joining NexusCommerce. We're excited to have you as part of our community.</p>
     <p>Best regards,<br>The NexusCommerce Team</p>
     </body>
@@ -444,10 +443,10 @@ data:
     </head>
     <body>
     <h1>Order Confirmation</h1>
-    <p>Hello {{customerName}},</p>
-    <p>Your order #{{orderNumber}} has been confirmed.</p>
-    <p>Order Total: ${{orderTotal}}</p>
-    <p>Expected Delivery: {{deliveryDate}}</p>
+    <p>Hello {{ "{{customerName}}" }},</p>
+    <p>Your order #{{ "{{orderNumber}}" }} has been confirmed.</p>
+    <p>Order Total: ${{ "{{orderTotal}}" }}</p>
+    <p>Expected Delivery: {{ "{{deliveryDate}}" }}</p>
     <p>Thank you for shopping with NexusCommerce!</p>
     </body>
     </html>
@@ -461,10 +460,10 @@ data:
     </head>
     <body>
     <h1>Payment Received</h1>
-    <p>Hello {{customerName}},</p>
-    <p>We have successfully received your payment of ${{amount}} for order #{{orderNumber}}.</p>
-    <p>Payment Method: {{paymentMethod}}</p>
-    <p>Transaction ID: {{transactionId}}</p>
+    <p>Hello {{ "{{customerName}}" }},</p>
+    <p>We have successfully received your payment of ${{ "{{amount}}" }} for order #{{ "{{orderNumber}}" }}.</p>
+    <p>Payment Method: {{ "{{paymentMethod}}" }}</p>
+    <p>Transaction ID: {{ "{{transactionId}}" }}</p>
     <p>Thank you for your business!</p>
     </body>
     </html>
