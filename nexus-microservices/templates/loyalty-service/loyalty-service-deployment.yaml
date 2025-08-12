@@ -131,7 +131,7 @@ spec:
           configMap:
             name: {{ .Values.loyaltyService.name }}-config
         - name: logs-volume
-        emptyDir: {}
+          emptyDir: {}
         - name: tmp-volume
           emptyDir: {}
       initContainers:
