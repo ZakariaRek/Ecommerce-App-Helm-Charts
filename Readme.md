@@ -140,7 +140,7 @@ graph TB
             MongoDB[(🍃 MongoDB<br/>User, Cart, Notifications)]
             PostgreSQL[(🐘 PostgreSQL<br/>Products, Orders, Payments)]
             Redis[(⚡ Redis<br/>Cache & Sessions)]
-            Kafka[📨 Kafka<br/>Event Streaming)]
+            Kafka[📨 Kafka<br/>Event Streaming]
         end
         
         subgraph "Observability Namespace"
