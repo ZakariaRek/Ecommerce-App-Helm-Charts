@@ -1,0 +1,583 @@
+# NexusCommerce Development Environment Configuration
+# Optimized for resource efficiency and rapid development
+
+global:
+  environment: development
+  storageClass: standard
+
+  # Reduced resources for development
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+  nodeSelector:
+    node-role: general
+
+  security:
+    enabled: false  # Relaxed security for development
+    networkPolicies:
+      enabled: false
+    rbac:
+      enabled: false
+
+# =============================================================================
+# SUB-CHART ENABLEMENT - SELECTIVE FOR DEVELOPMENT
+# =============================================================================
+
+nexus-database:
+  enabled: true
+
+nexus-infrastructure:
+  enabled: true
+
+nexus-microservices:
+  enabled: true
+
+nexus-observability:
+  enabled: true  # Simplified observability
+
+nexus-tools:
+  enabled: true
+
+# =============================================================================
+# DATA LAYER - MINIMAL CONFIGURATION
+# =============================================================================
+
+mongodb:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+  storage:
+    size: 2Gi
+  auth:
+    enabled: false  # Disabled for dev simplicity
+    rootUsername: "admin"
+    rootPassword: "dev123"
+
+postgresql:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+  storage:
+    size: 5Gi
+  auth:
+    postgresPassword: "dev123"
+    database: "nexuscommerce_dev"
+
+redis:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+  storage:
+    size: 1Gi
+
+kafka:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  storage:
+    size: 3Gi
+  zookeeper:
+    enabled: true
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+
+# =============================================================================
+# INFRASTRUCTURE LAYER - SINGLE REPLICAS
+# =============================================================================
+
+eurekaServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+configServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+apiGateway:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+  service:
+    type: NodePort
+    port: 8080
+    nodePort: 30080
+
+zipkinServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+# =============================================================================
+# MICROSERVICES - SINGLE REPLICAS WITH REDUCED RESOURCES
+# =============================================================================
+
+userService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  service:
+    type: NodePort
+    nodePort: 30081
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+  secrets:
+    jwtSecret: "dev-jwt-secret-key"
+    mongodbUsername: "userservice_dev"
+    mongodbPassword: "dev123"
+
+productService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  service:
+    type: NodePort
+    nodePort: 30082
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+  secrets:
+    dbUsername: "productservice_dev"
+    dbPassword: "dev123"
+
+cartService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  service:
+    type: NodePort
+    nodePort: 30083
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    sessionTimeout: 3600  # Longer timeout for dev
+    cacheTimeout: 300
+  secrets:
+    mongodbUsername: "cartservice_dev"
+    mongodbPassword: "dev123"
+
+orderService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  service:
+    type: NodePort
+    nodePort: 30084
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+  secrets:
+    dbUsername: "orderservice_dev"
+    dbPassword: "dev123"
+
+paymentService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  service:
+    type: NodePort
+    nodePort: 30085
+  config:
+    features:
+      stripe: true
+      paypal: false  # Disabled for dev
+      refunds: true
+      webhooks: false  # Disabled for dev
+    security:
+      maxPaymentAmount: "1000.00"  # Lower limit for dev
+  secrets:
+    dbUsername: "paymentservice_dev"
+    dbPassword: "dev123"
+    stripeApiKey: "sk_test_dev_stripe_key"
+    stripeWebhookSecret: "whsec_dev_webhook"
+    jwtSecret: "dev-payment-jwt"
+    encryptionKey: "dev-encryption-key-32-bytes-long"
+
+notificationService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  service:
+    type: NodePort
+    nodePort: 30086
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    features:
+      email: true
+      sms: false
+      push: false
+      websocket: true  # Enabled for dev testing
+  secrets:
+    mailHost: "smtp.gmail.com"
+    mailPort: "587"
+    mailUsername: "dev-notifications@example.com"
+    mailPassword: "dev-password"
+    emailFrom: "dev-notifications@example.com"
+
+loyaltyService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  service:
+    type: NodePort
+    nodePort: 30087
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    tiers:
+      bronzeThreshold: 0
+      silverThreshold: 100    # Lower thresholds for dev
+      goldThreshold: 500
+      platinumThreshold: 1000
+      diamondThreshold: 2000
+    points:
+      orderRate: 2.0         # Higher rate for testing
+      reviewPoints: 20
+      signupBonus: 200
+      firstOrderBonus: 100
+      referralBonus: 300
+  secrets:
+    dbUsername: "loyaltyservice_dev"
+    dbPassword: "dev123"
+
+shippingService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  service:
+    type: NodePort
+    nodePort: 30088
+  config:
+    profiles:
+      active: "dev,docker,kafka"
+    features:
+      gpsTracking: true
+      realTimeLocation: true
+  secrets:
+    dbUsername: "shippingservice_dev"
+    dbPassword: "dev123"
+    jwtSecret: "dev-shipping-jwt"
+    encryptionKey: "dev-shipping-encryption-key"
+
+# =============================================================================
+# OBSERVABILITY - SIMPLIFIED FOR DEVELOPMENT
+# =============================================================================
+
+prometheus:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+  storage:
+    enabled: true
+    size: 2Gi
+    retention: "3d"  # Shorter retention for dev
+  config:
+    scrapeInterval: "30s"    # Longer interval for dev
+    evaluationInterval: "30s"
+
+grafana:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  storage:
+    enabled: false  # Use emptyDir for dev
+    size: 1Gi
+  config:
+    adminPassword: "dev123"
+    allowSignUp: true  # Allow signup for dev
+
+# Disable heavy observability components for dev
+elasticsearch:
+  enabled: false
+
+kibana:
+  enabled: false
+
+logstash:
+  enabled: false
+
+kiali:
+  enabled: false
+
+# =============================================================================
+# TOOLS - ENABLED FOR DEVELOPMENT
+# =============================================================================
+
+kafkaUI:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+swaggerUI:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+adminer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "16Mi"
+      cpu: "10m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+pgAdmin:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "25m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+  storage:
+    enabled: false  # Use emptyDir for dev
+    size: 500Mi
+  config:
+    defaultPassword: "dev123"
+
+redisCommander:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+# =============================================================================
+# NETWORKING - DEVELOPMENT INGRESS
+# =============================================================================
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # No SSL for dev
+
+  hosts:
+    # Main API Gateway
+    - host: nexus-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: api-gateway
+          port: 8080
+
+    # Monitoring & Tools
+    - host: tools-dev.local
+      paths:
+        - path: /grafana
+          pathType: Prefix
+          service: grafana
+          port: 3000
+        - path: /prometheus
+          pathType: Prefix
+          service: prometheus
+          port: 9090
+        - path: /kafka-ui
+          pathType: Prefix
+          service: kafka-ui
+          port: 8080
+        - path: /adminer
+          pathType: Prefix
+          service: adminer
+          port: 8080
+        - path: /pgadmin
+          pathType: Prefix
+          service: pgadmin
+          port: 80
+        - path: /redis
+          pathType: Prefix
+          service: redis-commander
+          port: 8081
+
+# =============================================================================
+# DEVELOPMENT SPECIFIC SETTINGS
+# =============================================================================
+
+# Disable autoscaling for dev
+autoscaling:
+  enabled: false
+
+# Disable backup for dev
+backup:
+  enabled: false
+
+# Enable monitoring but keep it simple
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Disable service monitor for dev
+  healthChecks:
+    enabled: true
+  alerts:
+    enabled: false
+
+# Deployment settings for dev
+deployment:
+  strategy: "Recreate"  # Faster for dev
+  timeout: "300s"
+  waitForDependencies: true
+  dependencyTimeout: "180s"
+
+# Maintenance mode (useful for dev)
+maintenance:
+  enabled: false
+  message: "Development environment is under maintenance"
+
+# =============================================================================
+# DEBUG AND TESTING FEATURES
+# =============================================================================
+
+debug:
+  enabled: true
+  logLevel: DEBUG
+  enableRequestLogging: true
+  enableSqlLogging: true
+  enableDetailedMetrics: true
+  actuatorExposeAll: true

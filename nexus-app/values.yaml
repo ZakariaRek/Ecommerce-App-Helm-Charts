@@ -1,0 +1,634 @@
+# NexusCommerce Complete Platform Configuration
+# This umbrella chart deploys the entire NexusCommerce e-commerce platform
+
+global:
+  # Global settings applied across all sub-charts
+  environment: production
+  storageClass: standard
+  imageRegistry: yahyazakaria123
+  imagePullPolicy: IfNotPresent
+
+  # Resource defaults
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Node selection
+  nodeSelector:
+    node-role: general
+
+  # Security settings
+  security:
+    enabled: true
+    networkPolicies:
+      enabled: false
+    rbac:
+      enabled: true
+
+# =============================================================================
+# SUB-CHART ENABLEMENT
+# =============================================================================
+
+# Enable/disable entire sub-charts
+nexus-database:
+  enabled: true
+
+nexus-infrastructure:
+  enabled: true
+
+nexus-microservices:
+  enabled: true
+
+nexus-observability:
+  enabled: true
+
+nexus-tools:
+  enabled: true
+
+# =============================================================================
+# DATA LAYER CONFIGURATION (nexus-database)
+# =============================================================================
+
+# MongoDB Configuration
+mongodb:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  storage:
+    size: 10Gi
+  auth:
+    enabled: true
+    rootUsername: "admin"
+    rootPassword: "nexus123"
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  storage:
+    size: 20Gi
+  auth:
+    postgresPassword: "postgres123"
+    database: "nexuscommerce"
+
+# Redis Configuration
+redis:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  storage:
+    size: 5Gi
+
+# Kafka Configuration
+kafka:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  storage:
+    size: 10Gi
+  zookeeper:
+    enabled: true
+
+# =============================================================================
+# INFRASTRUCTURE LAYER CONFIGURATION (nexus-infrastructure)
+# =============================================================================
+
+# Eureka Server Configuration
+eurekaServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Config Server Configuration
+configServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# API Gateway Configuration
+apiGateway:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  service:
+    type: LoadBalancer
+    port: 8080
+
+# Zipkin Server Configuration
+zipkinServer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# =============================================================================
+# MICROSERVICES LAYER CONFIGURATION (nexus-microservices)
+# =============================================================================
+
+# User Service Configuration
+userService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  config:
+    contextPath: "/api/users"
+    database:
+      name: "User-service"
+    jwt:
+      expirationMs: 86400000
+  secrets:
+    jwtSecret: "c03a546beee68b92784e681b537540349c386d02b6dbf9917cf438e47e5c1ee93fdebc55652af00cb3ebc6bff17dc3bedaa33ea6cfdd1959b114ede448c4ac878530221cc3c32f1ef6d5951d0c6b1398bc01c563c7638a0000e6b4064c5733c5552aa232aa8547be8b4b1f8dddacac8256f319acd6832ff5ae93653583e20624fc99dab8489d33e582cf621444e9d944442559707a1f92d556862bb53ce12deb3ec17d3a8bc3c7159b672e4f02189af368a8e71d8547a5b71518de7a1d9a4997d20b4f646fae73e73c2666679b21cdec5544b7431975bb0a27d4e124ec5f13bf8f338ce3ba5ad8b3af1a8aae211bef3eb6ca4f8a24e6b80662c94530e168b0dc"
+    mongodbUsername: "userservice"
+    mongodbPassword: "userservice123"
+
+# Product Service Configuration
+productService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  config:
+    contextPath: "/api/products"
+    database:
+      name: "productdb"
+  secrets:
+    dbUsername: "productservice"
+    dbPassword: "productservice123"
+
+# Cart Service Configuration
+cartService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  config:
+    contextPath: "/api/carts"
+    database:
+      name: "cartdb"
+    sessionTimeout: 1800
+    cacheTimeout: 600
+  secrets:
+    mongodbUsername: "cartservice"
+    mongodbPassword: "cartservice123"
+
+# Order Service Configuration
+orderService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  config:
+    database:
+      name: "orderdb"
+  secrets:
+    dbUsername: "orderservice"
+    dbPassword: "orderservice123"
+
+# Payment Service Configuration
+paymentService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  config:
+    database:
+      name: "paymentdb"
+    features:
+      stripe: true
+      paypal: false
+      refunds: true
+      webhooks: true
+    security:
+      maxPaymentAmount: "10000.00"
+      minPaymentAmount: "0.50"
+      defaultCurrency: "USD"
+  secrets:
+    dbUsername: "paymentservice"
+    dbPassword: "paymentservice123"
+    stripeApiKey: "sk_live_stripe_api_key_here"
+    stripeWebhookSecret: "whsec_stripe_webhook_secret_here"
+    jwtSecret: "payment-jwt-secret"
+    encryptionKey: "32byte-encryption-key-for-payments"
+
+# Notification Service Configuration
+notificationService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  config:
+    database:
+      name: "notificationdb"
+    features:
+      sms: false
+      push: false
+      websocket: false
+      email: true
+  secrets:
+    mailHost: "smtp.gmail.com"
+    mailPort: "587"
+    mailUsername: "notifications@nexuscommerce.com"
+    mailPassword: "your-app-password"
+    emailFrom: "notifications@nexuscommerce.com"
+
+# Loyalty Service Configuration
+loyaltyService:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  config:
+    contextPath: "/api/loyalty"
+    database:
+      name: "loyalty-service"
+    tiers:
+      bronzeThreshold: 0
+      silverThreshold: 500
+      goldThreshold: 2000
+      platinumThreshold: 5000
+      diamondThreshold: 10000
+    points:
+      orderRate: 1.0
+      reviewPoints: 10
+      signupBonus: 100
+      firstOrderBonus: 100
+      referralBonus: 200
+  secrets:
+    dbUsername: "loyaltyservice"
+    dbPassword: "loyaltyservice123"
+
+# Shipping Service Configuration
+shippingService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  config:
+    database:
+      name: "shippingdb"
+    features:
+      gpsTracking: true
+      realTimeLocation: true
+  secrets:
+    dbUsername: "shippingservice"
+    dbPassword: "shippingservice123"
+    jwtSecret: "shipping-jwt-secret"
+    encryptionKey: "shipping-encryption-key"
+
+# =============================================================================
+# OBSERVABILITY LAYER CONFIGURATION (nexus-observability)
+# =============================================================================
+
+# Prometheus Configuration
+prometheus:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  storage:
+    enabled: true
+    size: 20Gi
+    retention: "30d"
+  config:
+    scrapeInterval: "15s"
+    evaluationInterval: "15s"
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  storage:
+    enabled: true
+    size: 5Gi
+  config:
+    adminPassword: "admin123"
+    allowSignUp: false
+
+# Elasticsearch Configuration
+elasticsearch:
+  enabled: false  # Disabled by default for resource efficiency
+  replicas: 1
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  storage:
+    enabled: true
+    size: 50Gi
+
+# Kibana Configuration
+kibana:
+  enabled: false  # Disabled by default
+  replicas: 1
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Logstash Configuration
+logstash:
+  enabled: false  # Disabled by default
+  replicas: 1
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Kiali Configuration
+kiali:
+  enabled: false  # Disabled by default
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# =============================================================================
+# TOOLS LAYER CONFIGURATION (nexus-tools)
+# =============================================================================
+
+# Kafka UI Configuration
+kafkaUI:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Swagger UI Configuration
+swaggerUI:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# Adminer Configuration
+adminer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# pgAdmin Configuration
+pgAdmin:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "300m"
+  storage:
+    enabled: true
+    size: 2Gi
+  config:
+    defaultPassword: "admin123"
+
+# Redis Commander Configuration
+redisCommander:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# =============================================================================
+# NETWORKING CONFIGURATION
+# =============================================================================
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+
+  hosts:
+    # Main API Gateway
+    - host: api.nexuscommerce.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: api-gateway
+          port: 8080
+
+    # Monitoring & Tools
+    - host: monitoring.nexuscommerce.local
+      paths:
+        - path: /grafana
+          pathType: Prefix
+          service: grafana
+          port: 3000
+        - path: /prometheus
+          pathType: Prefix
+          service: prometheus
+          port: 9090
+        - path: /kafka-ui
+          pathType: Prefix
+          service: kafka-ui
+          port: 8080
+        - path: /adminer
+          pathType: Prefix
+          service: adminer
+          port: 8080
+        - path: /pgadmin
+          pathType: Prefix
+          service: pgadmin
+          port: 80
+
+# =============================================================================
+# AUTOSCALING CONFIGURATION
+# =============================================================================
+
+autoscaling:
+  enabled: false  # Disabled by default
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# =============================================================================
+# BACKUP CONFIGURATION
+# =============================================================================
+
+backup:
+  enabled: false  # Disabled by default
+  schedule: "0 2 * * *"
+  retention: 7
+
+# =============================================================================
+# MONITORING & ALERTING
+# =============================================================================
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  healthChecks:
+    enabled: true
+  alerts:
+    enabled: false  # Disabled by default
+
+# =============================================================================
+# DEPLOYMENT CONFIGURATION
+# =============================================================================
+
+deployment:
+  # Deployment order and dependencies
+  strategy: "RollingUpdate"
+  timeout: "600s"
+
+  # Wait for dependencies
+  waitForDependencies: true
+  dependencyTimeout: "300s"
+
+# =============================================================================
+# MAINTENANCE MODE
+# =============================================================================
+
+maintenance:
+  enabled: false
+  message: "NexusCommerce is currently undergoing maintenance. Please check back later."

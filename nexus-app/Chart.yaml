@@ -1,0 +1,87 @@
+apiVersion: v2
+name: nexus-commerce
+description: Complete NexusCommerce E-commerce Platform - Umbrella Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - nexus-commerce
+  - microservices
+  - e-commerce
+  - infrastructure
+  - database
+  - observability
+  - tools
+  - umbrella-chart
+
+maintainers:
+  - name: NexusCommerce Team
+    email: team@nexuscommerce.com
+
+dependencies:
+  # Data Layer - Deploy First
+  - name: nexus-database
+    version: "0.1.0"
+    repository: "file://charts/nexus-database"
+    condition: nexus-database.enabled
+    tags:
+      - data
+      - foundation
+
+  # Infrastructure Layer - Deploy Second
+  - name: nexus-infrastructure
+    version: "0.1.0"
+    repository: "file://charts/nexus-infrastructure"
+    condition: nexus-infrastructure.enabled
+    tags:
+      - infrastructure
+      - foundation
+
+  # Microservices Layer - Deploy Third
+  - name: nexus-microservices
+    version: "0.1.0"
+    repository: "file://charts/nexus-microservices"
+    condition: nexus-microservices.enabled
+    tags:
+      - microservices
+      - application
+
+  # Observability Layer - Deploy Fourth
+  - name: nexus-observability
+    version: "0.1.0"
+    repository: "file://charts/nexus-observability"
+    condition: nexus-observability.enabled
+    tags:
+      - observability
+      - monitoring
+
+  # Tools Layer - Deploy Last
+  - name: nexus-tools
+    version: "0.1.0"
+    repository: "file://charts/nexus-tools"
+    condition: nexus-tools.enabled
+    tags:
+      - tools
+      - management
+
+annotations:
+  category: E-commerce Platform
+  licenses: MIT
+  images: |
+    - name: user-service
+      image: yahyazakaria123/ecommerce-app-user-service:latest
+    - name: product-service
+      image: yahyazakaria123/ecommerce-app-product-service:latest
+    - name: cart-service
+      image: yahyazakaria123/ecommerce-app-cart-service:latest
+    - name: order-service
+      image: yahyazakaria123/ecommerce-app-order-service:latest
+    - name: payment-service
+      image: yahyazakaria123/ecommerce-app-payment-service:latest
+    - name: notification-service
+      image: yahyazakaria123/ecommerce-app-notification-service:latest
+    - name: loyalty-service
+      image: yahyazakaria123/ecommerce-app-loyalty-service:latest
+    - name: shipping-service
+      image: yahyazakaria123/ecommerce-app-shipping-service:latest
